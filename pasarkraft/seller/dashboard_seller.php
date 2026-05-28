@@ -8,7 +8,8 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'seller') {
     exit();
 }
 
-$seller_id = $_SESSION['user_id']; $unread_count = 0;
+$seller_id = $_SESSION['user_id'];
+$unread_count = 0;
 if (isset($_SESSION['user_id'])) {
     $unread_stmt = $conn->prepare("SELECT COUNT(*) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
     $unread_stmt->bind_param("i", $_SESSION['user_id']);
@@ -18,18 +19,6 @@ if (isset($_SESSION['user_id'])) {
         $unread_count = $unread_row['unread_count'];
     }
     $unread_stmt->close();
-}
-?>
-$inquiries = [];
-if (isset($_SESSION["user_id"])) {
-    $inq_stmt = $conn->prepare("SELECT i.*, u.username as buyer_name, p.title as product_title, p.image_path as product_image FROM inquiries i JOIN users u ON i.buyer_id = u.id JOIN products p ON i.product_id = p.id WHERE i.seller_id = ? ORDER BY i.updated_at DESC LIMIT 5");
-    $inq_stmt->bind_param("i", $_SESSION["user_id"]);
-    $inq_stmt->execute();
-    $inq_res = $inq_stmt->get_result();
-    while ($row = $inq_res->fetch_assoc()) {
-        $inquiries[] = $row;
-    }
-    $inq_stmt->close();
 }
 
 $shopname = "Artisan";
