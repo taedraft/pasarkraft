@@ -400,9 +400,9 @@ if ($result) {
                     onclick="openAddAdminModal()">
                     <i class="fas fa-user-plus"></i> Add Admin
                 </button>
-                <button class="btn" style="background:#2c3e50; color:white; border:none; padding:10px 20px;">
+                <a class="btn" style="background:#2c3e50; color:white; border:none; padding:10px 20px;" href="export_csv.php?type=users">
                     <i class="fas fa-download"></i> Export Report
-                </button>
+                </a>
             </div>
         </div>
 

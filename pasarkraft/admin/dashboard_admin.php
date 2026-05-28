@@ -512,7 +512,7 @@ for ($i=0; $i<7; $i++) {
         <div class="admin-table-section">
             <div class="chart-header">
                 <h3>Recent Registrations</h3>
-                <button class="filter-btn" style="border:1px solid #ddd;">Export CSV</button>
+                <a class="filter-btn" style="border:1px solid #ddd;" href="export_csv.php?type=recent">Export CSV</a>
             </div>
 
             <table class="data-table" style="width:100%; border-collapse:collapse;">
