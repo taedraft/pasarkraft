@@ -17,8 +17,6 @@ if (isset($_SESSION['user_id'])) {
     }
     $unread_stmt->close();
 }
-?>
-
 // Get shop info for the header
 $shopname = "My Shop";
 $seller_email = "";
@@ -38,6 +36,15 @@ $stmt->close();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'edit_product') {
         $product_id = intval($_POST['product_id']);
+        $title = $_POST['title'] ?? '';
+        $description = $_POST['description'] ?? '';
+        $category = $_POST['category'] ?? '';
+        $subcategory = $_POST['subcategory'] ?? '';
+        $technique = $_POST['technique'] ?? '';
+        $color = $_POST['color'] ?? '';
+        $material = $_POST['material'] ?? '';
+        $style = $_POST['style'] ?? '';
+        $tags = $_POST['tags'] ?? '';
         $price = floatval($_POST['price']);
         $stock = intval($_POST['stock']);
 
@@ -45,8 +52,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt_check->bind_param("ii", $product_id, $seller_id);
         $stmt_check->execute();
         if ($stmt_check->get_result()->num_rows > 0) {
-            $stmt_update = $conn->prepare("UPDATE products SET price = ?, stock = ? WHERE id = ?");
-            $stmt_update->bind_param("dii", $price, $stock, $product_id);
+            $stmt_update = $conn->prepare("UPDATE products SET title = ?, description = ?, category = ?, subcategory = ?, technique = ?, color = ?, material = ?, style = ?, tags = ?, price = ?, stock = ? WHERE id = ?");
+            $stmt_update->bind_param("sssssssssdii", $title, $description, $category, $subcategory, $technique, $color, $material, $style, $tags, $price, $stock, $product_id);
             if ($stmt_update->execute()) {
                 echo json_encode(['success' => true]);
                 exit();
@@ -78,10 +85,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 // Handle form submission to add new product
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_product') {
     $title = $_POST['title'] ?? '';
+    $description = $_POST['description'] ?? '';
     $category = $_POST['category'] ?? '';
     $subcategory = $_POST['subcategory'] ?? '';
     $technique = $_POST['technique'] ?? '';
     $color = $_POST['color'] ?? '';
+    $material = $_POST['material'] ?? '';
+    $style = $_POST['style'] ?? '';
+    $tags = $_POST['tags'] ?? '';
     $price = floatval($_POST['price'] ?? 0);
     $stock = intval($_POST['stock'] ?? 0);
     $db_path = '';
@@ -99,8 +110,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
 
-    $stmt_insert = $conn->prepare("INSERT INTO products (seller_id, title, category, subcategory, technique, color, price, stock, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-    $stmt_insert->bind_param("isssssdis", $seller_id, $title, $category, $subcategory, $technique, $color, $price, $stock, $db_path);
+    $stmt_insert = $conn->prepare("INSERT INTO products (seller_id, title, description, category, subcategory, technique, color, material, style, tags, price, stock, image_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+    $stmt_insert->bind_param("isssssssssdis", $seller_id, $title, $description, $category, $subcategory, $technique, $color, $material, $style, $tags, $price, $stock, $db_path);
     if ($stmt_insert->execute()) {
         $_SESSION['success_msg'] = "Product added successfully!";
     }
@@ -111,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
 // Fetch products
 $products = [];
-$stmt = $conn->prepare("SELECT id, title, description, category, subcategory, technique, color, price, stock, image_path, created_at FROM products WHERE seller_id = ? ORDER BY created_at DESC");
+$stmt = $conn->prepare("SELECT id, title, description, category, subcategory, technique, color, material, style, tags, price, stock, image_path, created_at FROM products WHERE seller_id = ? ORDER BY created_at DESC");
 $stmt->bind_param("i", $seller_id);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -185,6 +196,22 @@ $stmt->close();
         .inventory-item:hover {
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
             border-color: #ddd;
+        }
+
+        .item-meta-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .item-meta-grid .form-group-small {
+            margin-bottom: 0;
+        }
+
+        .item-textarea {
+            min-height: 70px;
+            resize: vertical;
         }
 
         .item-image {
@@ -457,7 +484,14 @@ $stmt->close();
                             <?php endif; ?>
                         </div>
                         <div class="item-details">
-                            <h3><?php echo htmlspecialchars($item['title']); ?></h3>
+                            <div class="form-group-small">
+                                <label>Product Name</label>
+                                <input type="text" class="form-control-sm item-title-input" value="<?php echo htmlspecialchars($item['title'] ?? ''); ?>" disabled>
+                            </div>
+                            <div class="form-group-small" style="margin-top:10px;">
+                                <label>Description</label>
+                                <textarea class="form-control-sm item-desc-input item-textarea" disabled><?php echo htmlspecialchars($item['description'] ?? ''); ?></textarea>
+                            </div>
                             <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
                                 <span class="category"><?php echo htmlspecialchars($item['category']); ?></span>
                                 <?php if (!empty($item['subcategory'])): ?>
@@ -472,6 +506,36 @@ $stmt->close();
                                     <span class="category" style="background:#fdf6e3;"><i class="fas fa-palette"
                                             style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['color']); ?></span>
                                 <?php endif; ?>
+                            </div>
+                            <div class="item-meta-grid">
+                                <div class="form-group-small">
+                                    <label>Category</label>
+                                    <input type="text" class="form-control-sm item-category-input" value="<?php echo htmlspecialchars($item['category'] ?? ''); ?>" disabled>
+                                </div>
+                                <div class="form-group-small">
+                                    <label>Sub-category</label>
+                                    <input type="text" class="form-control-sm item-subcategory-input" value="<?php echo htmlspecialchars($item['subcategory'] ?? ''); ?>" disabled>
+                                </div>
+                                <div class="form-group-small">
+                                    <label>Technique</label>
+                                    <input type="text" class="form-control-sm item-technique-input" value="<?php echo htmlspecialchars($item['technique'] ?? ''); ?>" disabled>
+                                </div>
+                                <div class="form-group-small">
+                                    <label>Color</label>
+                                    <input type="text" class="form-control-sm item-color-input" value="<?php echo htmlspecialchars($item['color'] ?? ''); ?>" disabled>
+                                </div>
+                                <div class="form-group-small">
+                                    <label>Material</label>
+                                    <input type="text" class="form-control-sm item-material-input" value="<?php echo htmlspecialchars($item['material'] ?? ''); ?>" disabled>
+                                </div>
+                                <div class="form-group-small">
+                                    <label>Style</label>
+                                    <input type="text" class="form-control-sm item-style-input" value="<?php echo htmlspecialchars($item['style'] ?? ''); ?>" disabled>
+                                </div>
+                                <div class="form-group-small" style="grid-column: span 3;">
+                                    <label>Tags</label>
+                                    <input type="text" class="form-control-sm item-tags-input" value="<?php echo htmlspecialchars($item['tags'] ?? ''); ?>" disabled>
+                                </div>
                             </div>
                         </div>
                         <div class="form-group-small">
@@ -546,6 +610,24 @@ $stmt->close();
                 <div class="form-group" id="colorGroup" style="display:none;">
                     <label id="colorLabel">Color</label>
                     <input type="text" name="color" id="colorInput" class="form-control-sm" placeholder="e.g. Red, Blue, Wood Tone">
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea name="description" class="form-control-sm item-textarea" placeholder="Describe your product"></textarea>
+                </div>
+                <div class="row" style="display:flex; gap:1rem;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Material</label>
+                        <input type="text" name="material" class="form-control-sm" placeholder="e.g. Cotton, Teak">
+                    </div>
+                    <div class="form-group" style="flex:1;">
+                        <label>Style</label>
+                        <input type="text" name="style" class="form-control-sm" placeholder="e.g. Traditional, Modern">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tags</label>
+                    <input type="text" name="tags" class="form-control-sm" placeholder="e.g. floral, handmade">
                 </div>
                 <div class="row" style="display:flex; gap:1rem;">
                     <div class="form-group" style="flex:1;">
@@ -630,7 +712,7 @@ $stmt->close();
 
         function enableEdit(itemId) {
             const item = document.getElementById(itemId);
-            const inputs = item.querySelectorAll('input, select');
+            const inputs = item.querySelectorAll('input, select, textarea');
             const editBtn = item.querySelector('.btn-edit');
             const saveBtn = item.querySelector('.btn-save');
 
@@ -648,23 +730,47 @@ $stmt->close();
         function saveEdit(itemId) {
             const item = document.getElementById(itemId);
             const productId = itemId.replace('item-', '');
-            const inputs = item.querySelectorAll('input, select');
+            const inputs = item.querySelectorAll('input, select, textarea');
             const editBtn = item.querySelector('.btn-edit');
             const saveBtn = item.querySelector('.btn-save');
 
+            const titleInput = item.querySelector('.item-title-input');
+            const descInput = item.querySelector('.item-desc-input');
+            const categoryInput = item.querySelector('.item-category-input');
+            const subcategoryInput = item.querySelector('.item-subcategory-input');
+            const techniqueInput = item.querySelector('.item-technique-input');
+            const colorInput = item.querySelector('.item-color-input');
+            const materialInput = item.querySelector('.item-material-input');
+            const styleInput = item.querySelector('.item-style-input');
+            const tagsInput = item.querySelector('.item-tags-input');
             const stockInput = item.querySelector('.item-stock-input');
             const priceInput = item.querySelector('.item-price-input');
             const statusInput = item.querySelector('.item-status-input');
 
             const newPrice = priceInput.value;
             const newStock = stockInput.value;
+            const payload = [
+                `action=edit_product`,
+                `product_id=${encodeURIComponent(productId)}`,
+                `title=${encodeURIComponent(titleInput.value)}`,
+                `description=${encodeURIComponent(descInput.value)}`,
+                `category=${encodeURIComponent(categoryInput.value)}`,
+                `subcategory=${encodeURIComponent(subcategoryInput.value)}`,
+                `technique=${encodeURIComponent(techniqueInput.value)}`,
+                `color=${encodeURIComponent(colorInput.value)}`,
+                `material=${encodeURIComponent(materialInput.value)}`,
+                `style=${encodeURIComponent(styleInput.value)}`,
+                `tags=${encodeURIComponent(tagsInput.value)}`,
+                `price=${encodeURIComponent(newPrice)}`,
+                `stock=${encodeURIComponent(newStock)}`
+            ].join('&');
 
             fetch('myshop.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
-                body: `action=edit_product&product_id=${productId}&price=${newPrice}&stock=${newStock}`
+                body: payload
             })
                 .then(response => response.json())
                 .then(data => {
