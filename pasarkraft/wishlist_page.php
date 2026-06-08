@@ -35,11 +35,102 @@ $stmt->execute();
 $result = $stmt->get_result();
 $wishlist_items = [];
 if ($result && $result->num_rows > 0) {
-    while($row = $result->fetch_assoc()) {
+    while ($row = $result->fetch_assoc()) {
         $wishlist_items[] = $row;
     }
 }
 $stmt->close();
+
+$recommended_products = [];
+// Fetch cached recommendations for the buyer
+$rec_stmt = $conn->prepare("
+    SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname, r.score, r.recommendation_type
+    FROM recommendations r
+    JOIN products p ON r.product_id = p.id
+    LEFT JOIN artisans a ON p.seller_id = a.user_id
+    WHERE r.user_id = ? AND p.stock > 0
+    ORDER BY r.score DESC
+    LIMIT 8
+");
+$rec_stmt->bind_param("i", $user_id);
+$rec_stmt->execute();
+$rec_res = $rec_stmt->get_result();
+while ($row = $rec_res->fetch_assoc()) {
+    $recommended_products[] = $row;
+}
+$rec_stmt->close();
+
+// If no recommendations are cached, generate them dynamically in real-time.
+if (empty($recommended_products)) {
+    $python_bin = getenv('PK_PYTHON_BIN') ?: 'python';
+    $script_path = __DIR__ . DIRECTORY_SEPARATOR . 'recommender.py';
+    $exit_code = 1;
+
+    if (function_exists('exec') && file_exists($script_path)) {
+        $cmd = escapeshellarg($python_bin) . ' ' . escapeshellarg($script_path)
+            . ' --host ' . escapeshellarg($servername)
+            . ' --user ' . escapeshellarg($username)
+            . ' --password ' . escapeshellarg($password)
+            . ' --database ' . escapeshellarg($dbname)
+            . ' --user-id ' . escapeshellarg((string) $user_id)
+            . ' --limit 8 --write-db';
+        $output = [];
+        @exec($cmd . ' 2>&1', $output, $exit_code);
+    }
+
+    if ($exit_code === 0) {
+        $rec_stmt = $conn->prepare("
+            SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname, r.score, r.recommendation_type
+            FROM recommendations r
+            JOIN products p ON r.product_id = p.id
+            LEFT JOIN artisans a ON p.seller_id = a.user_id
+            WHERE r.user_id = ? AND p.stock > 0
+            ORDER BY r.score DESC
+            LIMIT 8
+        ");
+        $rec_stmt->bind_param("i", $user_id);
+        $rec_stmt->execute();
+        $rec_res = $rec_stmt->get_result();
+        while ($row = $rec_res->fetch_assoc()) {
+            $recommended_products[] = $row;
+        }
+        $rec_stmt->close();
+    }
+
+    if (empty($recommended_products)) {
+        require_once 'recommender.php';
+        $recEngine = new PasarKraftRecommender($conn);
+        $recEngine->trainTfidf();
+        $recEngine->trainSVD();
+        $recs = $recEngine->getRecommendationsForUser($user_id, 8);
+
+        if (!empty($recs)) {
+            $ins_stmt = $conn->prepare("INSERT INTO recommendations (user_id, product_id, score, recommendation_type) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE score = VALUES(score)");
+            foreach ($recs as $pid => $data) {
+                $ins_stmt->bind_param("iids", $user_id, $pid, $data['score'], $data['type']);
+                $ins_stmt->execute();
+            }
+            $ins_stmt->close();
+
+            $rec_stmt = $conn->prepare("
+                SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname, r.score, r.recommendation_type
+                FROM recommendations r
+                JOIN products p ON r.product_id = p.id
+                LEFT JOIN artisans a ON p.seller_id = a.user_id
+                WHERE r.user_id = ? AND p.stock > 0
+                ORDER BY r.score DESC
+                LIMIT 8
+            ");
+            $rec_stmt->bind_param("i", $user_id);
+            $rec_stmt->execute();
+            $rec_res = $rec_stmt->get_result();
+            while ($row = $rec_res->fetch_assoc()) {
+                $recommended_products[] = $row;
+            }
+            $rec_stmt->close();
+        }
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="ms">
@@ -204,9 +295,13 @@ $stmt->close();
                 <a href="batik_page.php">Batik</a>
                 <a href="woodcraft_page.php">Woodcraft</a>
                 <a href="homepage.php#about">About</a>
-                <a href="buyer/chat_history.php">Chat history <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
+                <a href="buyer/chat_history.php">Chat history
+                    <?php if (isset($unread_count) && $unread_count > 0)
+                        echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?>
+                </a>
                 <?php if (isset($_SESSION['user_id'])): ?>
-                    <a href="logout.php" class="nav-login" onclick="return confirm('Are you sure you want to log out?');">Logout</a>
+                    <a href="logout.php" class="nav-login"
+                        onclick="return confirm('Are you sure you want to log out?');">Logout</a>
                 <?php else: ?>
                     <a href="buyer/login_buyer.php" class="nav-login">Login</a>
                 <?php endif; ?>
@@ -235,35 +330,115 @@ $stmt->close();
         <!-- Product Grid -->
         <div class="product-grid" id="wishlistGrid">
             <?php if (empty($wishlist_items)): ?>
-                <div style="grid-column: 1 / -1; text-align: center; padding: 60px; color: #7f8c8d; background: #fff; border-radius: 8px; border: 1px dashed #ccc;">
+                <div
+                    style="grid-column: 1 / -1; text-align: center; padding: 60px; color: #7f8c8d; background: #fff; border-radius: 8px; border: 1px dashed #ccc;">
                     <i class="fas fa-heart-broken" style="font-size: 3rem; color: #bdc3c7; margin-bottom: 15px;"></i>
                     <h3>Your Wishlist is Empty</h3>
                     <p>Discover our beautiful collections and save your favorite Malaysian crafts here!</p>
-                    <a href="homepage.php#products" class="btn" style="margin-top: 15px; display: inline-block;">Explore Now</a>
+                    <a href="homepage.php#products" class="btn" style="margin-top: 15px; display: inline-block;">Explore
+                        Now</a>
                 </div>
             <?php else: ?>
                 <?php foreach ($wishlist_items as $item): ?>
                     <article class="product-card">
-                        <button class="btn-remove-wishlist" title="Remove from wishlist" onclick="removeFromWishlist(this, <?php echo $item['id']; ?>)">
+                        <button class="btn-remove-wishlist" title="Remove from wishlist"
+                            onclick="removeFromWishlist(this, <?php echo $item['id']; ?>)">
                             <i class="fas fa-times"></i>
                         </button>
                         <div class="product-image">
-                            <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'png/batik_shirt.png'); ?>" alt="<?php echo htmlspecialchars($item['title']); ?>">
+                            <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'png/batik_shirt.png'); ?>"
+                                alt="<?php echo htmlspecialchars($item['title']); ?>">
                         </div>
                         <div class="product-info">
                             <div class="product-meta">
-                                <span class="product-category"><?php echo htmlspecialchars($item['category']); ?></span>
-                                <button class="wishlist-btn active" title="Added to Wishlist" onclick="removeFromWishlist(this, <?php echo $item['id']; ?>)"><i class="fas fa-heart" style="color:#e74c3c;"></i></button>
+                                <span class="product-category">
+                                    <?php echo htmlspecialchars($item['category']); ?>
+                                </span>
+                                <button class="wishlist-btn active" title="Added to Wishlist"
+                                    onclick="removeFromWishlist(this, <?php echo $item['id']; ?>)"><i class="fas fa-heart"
+                                        style="color:#e74c3c;"></i></button>
                             </div>
-                            <h3 class="product-title"><?php echo htmlspecialchars($item['title']); ?></h3>
-                            <span class="product-price">RM <?php echo number_format($item['price'], 2); ?></span>
-                            <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>" class="btn-chat">Chat with Seller</a>
+                            <h3 class="product-title">
+                                <?php echo htmlspecialchars($item['title']); ?>
+                            </h3>
+                            <span class="product-price">RM
+                                <?php echo number_format($item['price'], 2); ?>
+                            </span>
+                            <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>"
+                                class="btn-chat">Chat with Seller</a>
                         </div>
                     </article>
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
     </div>
+
+    <?php if (!empty($recommended_products)): ?>
+        <section id="ai-recommendations" class="products"
+            style="background: #faf8f5; padding: 4rem 2rem; border-top: 1px solid #f1ece4; border-bottom: 1px solid #f1ece4; margin-top: 3rem;">
+            <div style="max-width: 1200px; margin: 0 auto;">
+                <div class="section-header" style="text-align: center; margin-bottom: 3rem;">
+                    <h2
+                        style="font-size: 2rem; color: var(--primary-color); font-family: var(--font-heading); margin-bottom: 0.5rem;">
+                        Recommended for You</h2>
+                    <p style="color: #7f8c8d; font-size: 0.95rem;"><i class="fas fa-magic"
+                            style="color: #d35400; margin-right: 5px;"></i> AI Personalized matches based on your interests.
+                    </p>
+                </div>
+
+                <div class="product-grid animate-fade-in">
+                    <?php foreach ($recommended_products as $prod):
+                        $img_src = htmlspecialchars($prod['image_path'] ?? '');
+                        if (empty($img_src)) {
+                            $img_src = 'png/batik_shirt.png';
+                        } elseif (strpos($img_src, '/') === false) {
+                            $img_src = 'png/' . $img_src;
+                        }
+
+                        $match_percentage = round($prod['score'] * 100);
+                        if ($match_percentage < 40)
+                            $match_percentage += 45;
+                        if ($match_percentage > 99)
+                            $match_percentage = 99;
+                        ?>
+                        <article class="product-card">
+                            <div class="product-image" style="position: relative;">
+                                <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
+                                <span class="ai-match-badge"
+                                    style="position: absolute; top: 15px; left: 15px; background: rgba(44, 62, 80, 0.95); color: white; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; border-radius: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 5px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); z-index: 10;">
+                                    <i class="fas fa-brain" style="color: #e67e22;"></i>
+                                    <?php echo $match_percentage; ?>% Match
+                                </span>
+                            </div>
+                            <div class="product-info">
+                                <div class="product-meta">
+                                    <span class="product-category">
+                                        <?php echo htmlspecialchars($prod['category']); ?>
+                                    </span>
+                                    <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-top: 5px;"><i
+                                            class="fas fa-store"></i>
+                                        <?php echo htmlspecialchars($prod['shopname'] ?? 'Artisan Shop'); ?>
+                                    </div>
+                                    <button class="wishlist-btn" onclick="toggleWishlist(this, <?php echo $prod['id']; ?>)"
+                                        title="Add to Wishlist"><i class="far fa-heart"></i></button>
+                                </div>
+                                <h3 class="product-title">
+                                    <?php echo htmlspecialchars($prod['title']); ?>
+                                </h3>
+                                <span class="product-price">RM
+                                    <?php echo number_format($prod['price'], 2); ?>
+                                </span>
+                                <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($prod['seller_id']); ?>&product_id=<?php echo $prod['id']; ?>"
+                                    class="btn-chat">
+                                    <i class="fas fa-comment-dots"></i> Chat with Seller
+                                </a>
+                            </div>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </section>
+    <?php endif; ?>
 
     <!-- Footer -->
     <footer>
@@ -280,31 +455,60 @@ $stmt->close();
         <p class="copyright">&copy; 2026 Pasarkraft. Keeping Traditions Alive.</p>
     </footer>
 
-<script>
-    function removeFromWishlist(btn, productId) {
-        fetch('buyer/toggle_wishlist.php', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ product_id: productId })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if(data.status === 'success') {
-                const article = btn.closest('article');
-                article.style.transition = 'opacity 0.3s';
-                article.style.opacity = '0';
-                setTimeout(() => {
-                    article.remove();
-                    if(document.querySelectorAll('.product-card').length === 0) {
-                        location.reload();
+    <script>
+        function removeFromWishlist(btn, productId) {
+            fetch('buyer/toggle_wishlist.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const article = btn.closest('article');
+                        article.style.transition = 'opacity 0.3s';
+                        article.style.opacity = '0';
+                        setTimeout(() => {
+                            article.remove();
+                            if (document.querySelectorAll('.product-card').length === 0) {
+                                location.reload();
+                            }
+                        }, 300);
+                    } else {
+                        alert(data.message || 'Error occurred');
                     }
-                }, 300);
-            } else {
-                alert(data.message || 'Error occurred');
-            }
-        });
-    }
-</script>
+                });
+        }
+
+        function toggleWishlist(btn, productId) {
+            fetch('buyer/toggle_wishlist.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ product_id: productId })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        btn.classList.toggle('active');
+                        const icon = btn.querySelector('i');
+                        if (btn.classList.contains('active')) {
+                            icon.classList.remove('far');
+                            icon.classList.add('fas');
+                            icon.style.color = '#e74c3c';
+                        } else {
+                            icon.classList.remove('fas');
+                            icon.classList.add('far');
+                            icon.style.color = '';
+                        }
+                        setTimeout(() => {
+                            location.reload();
+                        }, 400);
+                    } else {
+                        alert(data.message || 'Error occurred');
+                    }
+                });
+        }
+    </script>
 </body>
 
 </html>

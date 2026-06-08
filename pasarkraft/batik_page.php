@@ -266,7 +266,7 @@ if ($result && $result->num_rows > 0) {
                             $heart_icon = $is_wished ? 'fas fa-heart' : 'far fa-heart';
                             $heart_color = $is_wished ? 'color: #e74c3c;' : '';
                         ?>
-                        <article class="product-card">
+                        <article class="product-card" data-product-id="<?php echo $item['id']; ?>">
                             <div class="product-image">
                                 <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'batik_shirt.png'); ?>"
                                     alt="<?php echo htmlspecialchars($item['title']); ?>">
@@ -340,6 +340,46 @@ if ($result && $result->num_rows > 0) {
             }
         });
     }
+
+    function pkLogInteraction(productId, interactionType, interactionValue) {
+        fetch('api/log_interaction.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                product_id: productId,
+                interaction_type: interactionType,
+                interaction_value: interactionValue || 0
+            })
+        }).catch(function () {});
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const cards = document.querySelectorAll('.product-card[data-product-id]');
+        if (!('IntersectionObserver' in window)) {
+            cards.forEach(function (card) {
+                pkLogInteraction(card.getAttribute('data-product-id'), 'view', 1.0);
+            });
+            return;
+        }
+
+        const seenKey = 'pk_viewed_products';
+        const seenProducts = new Set(JSON.parse(localStorage.getItem(seenKey) || '[]'));
+        const observer = new IntersectionObserver(function (entries) {
+            entries.forEach(function (entry) {
+                if (!entry.isIntersecting) return;
+                const productId = entry.target.getAttribute('data-product-id');
+                if (!productId || seenProducts.has(productId)) return;
+                seenProducts.add(productId);
+                localStorage.setItem(seenKey, JSON.stringify(Array.from(seenProducts)));
+                pkLogInteraction(productId, 'view', 1.0);
+                observer.unobserve(entry.target);
+            });
+        }, { threshold: 0.55 });
+
+        cards.forEach(function (card) {
+            observer.observe(card);
+        });
+    });
 </script>
 
 </html>

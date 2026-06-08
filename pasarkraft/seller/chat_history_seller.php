@@ -186,6 +186,59 @@ if ($active_inquiry_id > 0) {
         .btn-status.agree { color: #0c5460; background: #d1ecf1; border-color: #bee5eb; }
         .btn-status.sold { color: #155724; background: #d4edda; border-color: #c3e6cb; }
         .btn-status.nodeal { color: #721c24; background: #f8d7da; border-color: #f5c6cb; }
+
+        .ai-helper-panel {
+            margin: 0 20px 10px;
+            padding: 14px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            background: linear-gradient(180deg, #ffffff, #fafafa);
+        }
+
+        .ai-helper-panel h4 {
+            margin: 0 0 6px 0;
+            color: #2c3e50;
+        }
+
+        .ai-helper-panel p {
+            margin: 0 0 12px 0;
+            font-size: 0.85rem;
+            color: #64748b;
+        }
+
+        .ai-helper-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .ai-helper-actions button {
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 999px;
+            background: #fff;
+            color: #334155;
+            cursor: pointer;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .ai-helper-actions button:hover {
+            border-color: var(--accent-color);
+            color: var(--accent-color);
+        }
+
+        .ai-helper-output {
+            min-height: 72px;
+            padding: 12px;
+            border-radius: 10px;
+            background: #f8fafc;
+            color: #334155;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body>
@@ -295,6 +348,16 @@ if ($active_inquiry_id > 0) {
                     <?php endif; ?>
                 </div>
 
+                <div class="ai-helper-panel">
+                    <h4><i class="fas fa-robot"></i> AI Assistant</h4>
+                    <p>Summarize long chats or draft quick replies for the buyer.</p>
+                    <div class="ai-helper-actions">
+                        <button type="button" id="aiSummarizeBtn">Summarize Conversation</button>
+                        <button type="button" id="aiReplyBtn">Suggest Quick Replies</button>
+                    </div>
+                    <div class="ai-helper-output" id="aiHelperOutput">AI summaries will appear here.</div>
+                </div>
+
                 <div class="chat-input-area">
                     <form class="chat-form" method="POST">
                         <input type="text" name="message" class="chat-input" placeholder="Type a message..." required autocomplete="off" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
@@ -303,8 +366,60 @@ if ($active_inquiry_id > 0) {
                 </div>
                 <!-- Auto scroll to bottom -->
                 <script>
+                    const pkConversationMessages = <?php echo json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+                    const pkSellerId = <?php echo (int) $seller_id; ?>;
+                    const pkBuyerName = <?php echo json_encode($active_inquiry ? (trim($active_inquiry['firstname'] . ' ' . $active_inquiry['lastname']) ?: $active_inquiry['username']) : 'Buyer', JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+                    const pkAiOutput = document.getElementById('aiHelperOutput');
+                    const pkSummarizeBtn = document.getElementById('aiSummarizeBtn');
+                    const pkReplyBtn = document.getElementById('aiReplyBtn');
+
                     var cm = document.getElementById('chatMessages');
                     if(cm) cm.scrollTop = cm.scrollHeight;
+
+                    function buildTranscript() {
+                        return pkConversationMessages.slice(-20).map(function (msg) {
+                            const speaker = parseInt(msg.sender_id, 10) === pkSellerId ? 'Seller' : pkBuyerName;
+                            return speaker + ': ' + (msg.message || '');
+                        }).join('\n');
+                    }
+
+                    function requestAiHelp(mode) {
+                        if (!pkAiOutput) return;
+                        pkAiOutput.textContent = 'Generating AI response...';
+                        const transcript = buildTranscript();
+                        const prompt = mode === 'summary'
+                            ? 'Summarize this seller-buyer conversation in 4 concise bullet points, then list the next action item for the seller. Finally suggest 3 short replies the artisan can send.\n\nConversation:\n' + transcript
+                            : 'Suggest 3 short, polite quick replies the artisan can send next, based on the following conversation. Keep each reply under 18 words.\n\nConversation:\n' + transcript;
+
+                        fetch('../api/chatbot.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ message: prompt, history: [] })
+                        })
+                        .then(function (res) { return res.json(); })
+                        .then(function (data) {
+                            if (data.status === 'success') {
+                                pkAiOutput.textContent = data.reply;
+                            } else {
+                                pkAiOutput.textContent = 'AI helper error: ' + (data.message || 'Unknown error');
+                            }
+                        })
+                        .catch(function () {
+                            pkAiOutput.textContent = 'AI helper is unavailable right now.';
+                        });
+                    }
+
+                    if (pkSummarizeBtn) {
+                        pkSummarizeBtn.addEventListener('click', function () {
+                            requestAiHelp('summary');
+                        });
+                    }
+
+                    if (pkReplyBtn) {
+                        pkReplyBtn.addEventListener('click', function () {
+                            requestAiHelp('reply');
+                        });
+                    }
                 </script>
             <?php else: ?>
                 <div class="empty-chat">

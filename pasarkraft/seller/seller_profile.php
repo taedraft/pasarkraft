@@ -2,7 +2,7 @@
 session_start();
 require '../db_connect.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'seller') {
+if (!isset($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'seller') {
     $_SESSION['login_error'] = "Please log in to access your profile.";
     header("Location: login_seller.php");
     exit();
@@ -19,7 +19,6 @@ if (isset($_SESSION['user_id'])) {
     }
     $unread_stmt->close();
 }
-?>
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -65,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $new_shopname = trim($_POST['shopname'] ?? '');
-    $new_phone = trim($_POST['phone']);
+    $new_phone = trim($_POST['phone'] ?? '');
     $current_pass = $_POST['current_password'] ?? '';
     $new_pass = $_POST['new_password'] ?? '';
     $confirm_pass = $_POST['confirm_password'] ?? '';
@@ -92,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user_data = $res->fetch_assoc();
             $stmt->close();
 
-            if (password_verify($current_pass, $user_data['password'])) {
+            if ($user_data && password_verify($current_pass, $user_data['password'])) {
                 $hashed_new = password_hash($new_pass, PASSWORD_BCRYPT);
                 $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
                 $stmt->bind_param("si", $hashed_new, $seller_id);

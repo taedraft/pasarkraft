@@ -95,8 +95,9 @@ if (isset($_SESSION['training_metrics'])) {
 }
 
 // Trigger initial training to populate SVD/TFIDF maps for display
+// NOTE: training SVD can be slow on shared hosts; only run when explicitly requested.
 $recommender->trainTfidf();
-$recommender->trainSVD();
+// Do NOT call trainSvd() automatically on page load to avoid timeouts; keep SVD training behind the "Train AI Pipeline" action.
 
 $vocab = $recommender->getVocabulary();
 $tfidf = $recommender->getTfidfVectors();

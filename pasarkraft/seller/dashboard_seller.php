@@ -35,6 +35,96 @@ if ($result->num_rows > 0) {
 }
 $stmt->close();
 
+// KPI aggregations
+$total_inquiries_count = 0;
+$active_inquiries_count = 0;
+$products_listed_count = 0;
+$wishlist_adds_count = 0;
+$product_views_count = 0;
+$product_clicks_count = 0;
+$ctr_rate = 0.0;
+
+$stmt_total_inquiries = $conn->prepare("SELECT COUNT(DISTINCT buyer_id) AS cnt FROM inquiries WHERE seller_id = ?");
+$stmt_total_inquiries->bind_param("i", $seller_id);
+$stmt_total_inquiries->execute();
+$total_res = $stmt_total_inquiries->get_result();
+if ($total_row = $total_res->fetch_assoc()) {
+    $total_inquiries_count = (int) $total_row['cnt'];
+}
+$stmt_total_inquiries->close();
+
+$stmt_active = $conn->prepare("SELECT COUNT(*) AS cnt FROM inquiries WHERE seller_id = ? AND status IN ('In Discussion', 'Deal Agreed')");
+$stmt_active->bind_param("i", $seller_id);
+$stmt_active->execute();
+$active_res = $stmt_active->get_result();
+if ($active_row = $active_res->fetch_assoc()) {
+    $active_inquiries_count = (int) $active_row['cnt'];
+}
+$stmt_active->close();
+
+$stmt_products = $conn->prepare("SELECT COUNT(*) AS cnt FROM products WHERE seller_id = ?");
+$stmt_products->bind_param("i", $seller_id);
+$stmt_products->execute();
+$prod_res = $stmt_products->get_result();
+if ($prod_row = $prod_res->fetch_assoc()) {
+    $products_listed_count = (int) $prod_row['cnt'];
+}
+$stmt_products->close();
+
+$stmt_wishlist = $conn->prepare("SELECT COUNT(*) AS cnt FROM wishlist w JOIN products p ON w.product_id = p.id WHERE p.seller_id = ?");
+$stmt_wishlist->bind_param("i", $seller_id);
+$stmt_wishlist->execute();
+$wish_res = $stmt_wishlist->get_result();
+if ($wish_row = $wish_res->fetch_assoc()) {
+    $wishlist_adds_count = (int) $wish_row['cnt'];
+}
+$stmt_wishlist->close();
+
+$stmt_views = $conn->prepare("SELECT COUNT(*) AS cnt FROM user_interactions ui JOIN products p ON ui.product_id = p.id WHERE p.seller_id = ? AND ui.interaction_type = 'view'");
+$stmt_views->bind_param("i", $seller_id);
+$stmt_views->execute();
+$views_res = $stmt_views->get_result();
+if ($views_row = $views_res->fetch_assoc()) {
+    $product_views_count = (int) $views_row['cnt'];
+}
+$stmt_views->close();
+
+$stmt_clicks = $conn->prepare("SELECT COUNT(*) AS cnt FROM user_interactions ui JOIN products p ON ui.product_id = p.id WHERE p.seller_id = ? AND ui.interaction_type = 'click'");
+$stmt_clicks->bind_param("i", $seller_id);
+$stmt_clicks->execute();
+$clicks_res = $stmt_clicks->get_result();
+if ($clicks_row = $clicks_res->fetch_assoc()) {
+    $product_clicks_count = (int) $clicks_row['cnt'];
+}
+$stmt_clicks->close();
+
+if ($product_views_count > 0) {
+    $ctr_rate = round(($product_clicks_count / $product_views_count) * 100, 2);
+}
+
+$engagement_products = [];
+$stmt_engagement = $conn->prepare("\
+    SELECT p.id, p.title,\
+        SUM(CASE WHEN ui.interaction_type = 'view' THEN 1 ELSE 0 END) AS views,\
+        SUM(CASE WHEN ui.interaction_type = 'click' THEN 1 ELSE 0 END) AS clicks\
+    FROM products p\
+    LEFT JOIN user_interactions ui ON ui.product_id = p.id\
+    WHERE p.seller_id = ?\
+    GROUP BY p.id, p.title\
+    ORDER BY views DESC, clicks DESC, p.created_at DESC\
+    LIMIT 5\
+");
+$stmt_engagement->bind_param("i", $seller_id);
+$stmt_engagement->execute();
+$engagement_res = $stmt_engagement->get_result();
+while ($row = $engagement_res->fetch_assoc()) {
+    $row['views'] = (int) $row['views'];
+    $row['clicks'] = (int) $row['clicks'];
+    $row['ctr'] = $row['views'] > 0 ? round(($row['clicks'] / $row['views']) * 100, 2) : 0;
+    $engagement_products[] = $row;
+}
+$stmt_engagement->close();
+
 // Fetch inquiries
 $inquiries = [];
 $stmt_inq = $conn->prepare("SELECT i.id, i.current_offer, i.status, i.updated_at, u.firstname as buyer_name, p.title as product_title FROM inquiries i JOIN users u ON i.buyer_id = u.id JOIN products p ON i.product_id = p.id WHERE i.seller_id = ? ORDER BY i.updated_at DESC LIMIT 5");
@@ -270,6 +360,46 @@ $stmt_inq->close();
             margin-bottom: 0.3rem;
         }
 
+        .engagement-bars {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .engagement-row {
+            display: grid;
+            gap: 0.4rem;
+        }
+
+        .engagement-row .row-label {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.88rem;
+            color: #334155;
+        }
+
+        .engagement-track {
+            width: 100%;
+            height: 12px;
+            border-radius: 999px;
+            background: #edf2f7;
+            overflow: hidden;
+        }
+
+        .engagement-fill {
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #f59e0b, #ef4444);
+        }
+
+        .engagement-meta {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
         @media (max-width: 900px) {
             .dashboard-grid-2 {
                 grid-template-columns: 1fr;
@@ -338,17 +468,8 @@ $stmt_inq->close();
         <div class="kpi-grid">
             <div class="kpi-card">
                 <div class="kpi-info">
-                    <h3>RM 4,280</h3>
-                    <p>Est. Revenue</p>
-                </div>
-                <div class="kpi-icon" style="background:#e8f5e9; color:#2e7d32;">
-                    <i class="fas fa-coins"></i>
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-info">
-                    <h3>8</h3>
-                    <p>Active Inquiries</p>
+                    <h3><?php echo number_format($total_inquiries_count); ?></h3>
+                    <p>Unique Buyer Inquiries</p>
                 </div>
                 <div class="kpi-icon" style="background:#e3f2fd; color:#1565c0;">
                     <i class="fas fa-comments"></i>
@@ -356,7 +477,16 @@ $stmt_inq->close();
             </div>
             <div class="kpi-card">
                 <div class="kpi-info">
-                    <h3>12</h3>
+                    <h3><?php echo number_format($wishlist_adds_count); ?></h3>
+                    <p>Wishlist Adds</p>
+                </div>
+                <div class="kpi-icon" style="background:#fff8e1; color:#fbc02d;">
+                    <i class="fas fa-heart"></i>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h3><?php echo number_format($products_listed_count); ?></h3>
                     <p>Products Listed</p>
                 </div>
                 <div class="kpi-icon" style="background:#fff3e0; color:#ef6c00;">
@@ -365,53 +495,72 @@ $stmt_inq->close();
             </div>
             <div class="kpi-card">
                 <div class="kpi-info">
-                    <h3>4.8</h3>
-                    <p>Average Rating</p>
+                    <h3><?php echo number_format($active_inquiries_count); ?></h3>
+                    <p>Active Inquiries</p>
                 </div>
-                <div class="kpi-icon" style="background:#fff8e1; color:#fbc02d;">
-                    <i class="fas fa-star"></i>
+                <div class="kpi-icon" style="background:#e8f5e9; color:#2e7d32;">
+                    <i class="fas fa-comment-dots"></i>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h3><?php echo number_format($product_views_count); ?></h3>
+                    <p>Product Views</p>
+                </div>
+                <div class="kpi-icon" style="background:#eff6ff; color:#2563eb;">
+                    <i class="fas fa-eye"></i>
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h3><?php echo number_format($ctr_rate, 2); ?>%</h3>
+                    <p>Click-Through Rate</p>
+                </div>
+                <div class="kpi-icon" style="background:#fdf2f8; color:#db2777;">
+                    <i class="fas fa-bullseye"></i>
                 </div>
             </div>
         </div>
 
         <div class="dashboard-grid-2">
-            <!-- Left: Revenue Grid (Using existing styles from homepage_seller if possible, or new) -->
-            <!-- I'll use the .revenue-chart-card class I defined in styles.css -->
+            <!-- Left: Real Engagement Chart -->
             <div class="revenue-chart-card" style="box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
                 <div class="chart-header">
-                    <h3>Revenue Analytics</h3>
+                    <h3>Product Views & CTR</h3>
                     <div class="chart-legend">
                         <div class="legend-item"><span class="legend-color"
-                                style="background:var(--accent-color)"></span> Sales</div>
+                                style="background:var(--accent-color)"></span> Views</div>
                     </div>
                 </div>
 
-                <!-- CSS Bar Chart Component -->
-                <div class="css-bar-chart">
-                    <div class="chart-bar-group">
-                        <div class="chart-bar fill" style="height: 40%;" data-value="RM 15,200"></div>
-                        <span class="chart-label">2021</span>
-                    </div>
-                    <div class="chart-bar-group">
-                        <div class="chart-bar fill" style="height: 55%;" data-value="RM 21,500"></div>
-                        <span class="chart-label">2022</span>
-                    </div>
-                    <div class="chart-bar-group">
-                        <div class="chart-bar fill" style="height: 35%;" data-value="RM 14,800"></div>
-                        <span class="chart-label">2023</span>
-                    </div>
-                    <div class="chart-bar-group">
-                        <div class="chart-bar fill" style="height: 60%;" data-value="RM 24,100"></div>
-                        <span class="chart-label">2024</span>
-                    </div>
-                    <div class="chart-bar-group">
-                        <div class="chart-bar fill" style="height: 45%;" data-value="RM 18,900"></div>
-                        <span class="chart-label">2025</span>
-                    </div>
-                    <div class="chart-bar-group">
-                        <div class="chart-bar fill" style="height: 64%;" data-value="RM 25,600"></div>
-                        <span class="chart-label" style="font-weight:700; color:#333;">2026</span>
-                    </div>
+                <div class="engagement-bars">
+                    <?php if (empty($engagement_products)): ?>
+                        <p style="color:#94a3b8; margin:0;">No engagement logs yet. Product views and click-throughs will appear here once buyers browse your listings.</p>
+                    <?php else: ?>
+                        <?php
+                            $maxViews = 0;
+                            foreach ($engagement_products as $eng) {
+                                if ($eng['views'] > $maxViews) $maxViews = $eng['views'];
+                            }
+                            $maxViews = max(1, $maxViews);
+                        ?>
+                        <?php foreach ($engagement_products as $eng): ?>
+                            <?php $width = round(($eng['views'] / $maxViews) * 100); ?>
+                            <div class="engagement-row">
+                                <div class="row-label">
+                                    <span><?php echo htmlspecialchars(strlen($eng['title']) > 28 ? substr($eng['title'], 0, 28) . '...' : $eng['title']); ?></span>
+                                    <span><?php echo number_format($eng['views']); ?> views</span>
+                                </div>
+                                <div class="engagement-track">
+                                    <div class="engagement-fill" style="width: <?php echo $width; ?>%;"></div>
+                                </div>
+                                <div class="engagement-meta">
+                                    <span><?php echo number_format($eng['clicks']); ?> clicks</span>
+                                    <span>CTR <?php echo number_format($eng['ctr'], 2); ?>%</span>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </div>
             </div>
 

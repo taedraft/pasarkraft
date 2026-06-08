@@ -4,8 +4,27 @@ require "../db_connect.php";
 if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
     // skip strict for dev
 }
-$notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
-$admin_notif_count = $notif_stmt->fetch_assoc()["cnt"];
+
+// Defensive: only count pending approvals if column exists
+$colRes = $conn->query("SELECT DATABASE() AS db_name");
+$dbName = $colRes ? ($colRes->fetch_assoc()["db_name"] ?? null) : null;
+$hasApprovalCol = false;
+if ($dbName) {
+    $stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+    $table = 'artisans'; $col = 'approval_status';
+    $stmt->bind_param('sss', $dbName, $table, $col);
+    $stmt->execute();
+    $r = $stmt->get_result()->fetch_assoc();
+    $hasApprovalCol = ($r['cnt'] ?? 0) > 0;
+    $stmt->close();
+}
+
+if ($hasApprovalCol) {
+    $notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
+    $admin_notif_count = $notif_stmt ? ($notif_stmt->fetch_assoc()["cnt"] ?? 0) : 0;
+} else {
+    $admin_notif_count = 0;
+}
 ?>
 <!DOCTYPE html>
 <html lang="ms">

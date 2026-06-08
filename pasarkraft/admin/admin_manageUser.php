@@ -1,8 +1,28 @@
 <?php
 session_start();
 require "../db_connect.php";
-$notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
-$admin_notif_count = $notif_stmt->fetch_assoc()["cnt"];
+
+function column_exists_admin($conn, $table, $column) {
+    $db_res = $conn->query("SELECT DATABASE() AS db_name");
+    $db_row = $db_res ? $db_res->fetch_assoc() : null;
+    $db_name = $db_row["db_name"] ?? null;
+    if (!$db_name) return false;
+    $stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?");
+    $stmt->bind_param('sss', $db_name, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    return ($row['cnt'] ?? 0) > 0;
+}
+
+$has_approval = column_exists_admin($conn, 'artisans', 'approval_status');
+if ($has_approval) {
+    $notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
+    $admin_notif_count = $notif_stmt ? ($notif_stmt->fetch_assoc()["cnt"] ?? 0) : 0;
+} else {
+    $admin_notif_count = 0;
+}
 
 
 // Redirect if not admin
@@ -32,7 +52,8 @@ if (isset($_GET["action"]) && isset($_GET["id"])) {
 $users_data = [];
 $pending_count = 0;
 
-$query = "SELECT u.id, u.firstname, u.lastname, u.username, u.email, u.role, u.status, u.created_at, a.shopname, a.ssm, a.phone, a.approval_status 
+$approval_select = $has_approval ? 'a.approval_status' : "NULL AS approval_status";
+$query = "SELECT u.id, u.firstname, u.lastname, u.username, u.email, u.role, u.status, u.created_at, a.shopname, a.ssm, a.phone, $approval_select 
           FROM users u 
           LEFT JOIN artisans a ON u.id = a.user_id 
           WHERE u.role != 'admin' 

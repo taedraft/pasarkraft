@@ -1,8 +1,34 @@
 <?php
 session_start();
 require "../db_connect.php";
-$notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
-$admin_notif_count = $notif_stmt->fetch_assoc()["cnt"];
+
+function column_exists($conn, $table, $column) {
+    $db_res = $conn->query("SELECT DATABASE() AS db_name");
+    $db_row = $db_res ? $db_res->fetch_assoc() : null;
+    $db_name = $db_row["db_name"] ?? null;
+    if (!$db_name) {
+        return false;
+    }
+
+    $stmt = $conn->prepare(
+        "SELECT COUNT(*) AS cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?"
+    );
+    $stmt->bind_param("sss", $db_name, $table, $column);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    return ($row["cnt"] ?? 0) > 0;
+}
+
+$has_approval_status = column_exists($conn, "artisans", "approval_status");
+
+$admin_notif_count = 0;
+if ($has_approval_status) {
+    $notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
+    $admin_notif_count = $notif_stmt ? ($notif_stmt->fetch_assoc()["cnt"] ?? 0) : 0;
+}
 
 
 // Redirect if not admin
@@ -12,29 +38,38 @@ if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
 }
 
 // Fetch KPIs
+$pending_verifications_sql = $has_approval_status
+    ? "(SELECT COUNT(*) FROM artisans WHERE approval_status='pending')"
+    : "0";
+
 $kpi_res = $conn->query("
     SELECT 
         (SELECT COUNT(*) FROM users WHERE role='seller') as total_sellers,
         (SELECT COUNT(*) FROM users WHERE role='buyer') as total_buyers,
         (SELECT COUNT(*) FROM products) as active_listings,
-        (SELECT COUNT(*) FROM artisans WHERE approval_status='pending') as pending_verifications
+        $pending_verifications_sql as pending_verifications
 ");
 $kpi = $kpi_res->fetch_assoc();
 
 // Fetch Pending Approvals
-$pending_res = $conn->query("
-    SELECT u.id, a.shopname 
-    FROM users u 
-    JOIN artisans a ON u.id = a.user_id 
-    WHERE a.approval_status = 'pending' 
-    LIMIT 4
-");
 $pending_approvals = [];
-while($row = $pending_res->fetch_assoc()) $pending_approvals[] = $row;
+if ($has_approval_status) {
+    $pending_res = $conn->query("
+        SELECT u.id, a.shopname 
+        FROM users u 
+        JOIN artisans a ON u.id = a.user_id 
+        WHERE a.approval_status = 'pending' 
+        LIMIT 4
+    ");
+    while ($pending_res && ($row = $pending_res->fetch_assoc())) {
+        $pending_approvals[] = $row;
+    }
+}
 
 // Fetch Recent Registrations
+$recent_select = $has_approval_status ? "a.approval_status" : "NULL AS approval_status";
 $recent_res = $conn->query("
-    SELECT u.id, u.firstname, u.lastname, u.username, u.role, u.status, u.created_at, a.shopname, a.approval_status 
+    SELECT u.id, u.firstname, u.lastname, u.username, u.role, NULL AS status, u.created_at, a.shopname, $recent_select 
     FROM users u 
     LEFT JOIN artisans a ON u.id = a.user_id 
     WHERE u.role != 'admin' 
@@ -42,7 +77,9 @@ $recent_res = $conn->query("
     LIMIT 5
 ");
 $recent_users = [];
-while($row = $recent_res->fetch_assoc()) $recent_users[] = $row;
+while ($recent_res && ($row = $recent_res->fetch_assoc())) {
+    $recent_users[] = $row;
+}
 
 // Generate Chart Data (7 days simulated logic scaled to current totals to look realistic)
 $chartHtml = "";
@@ -538,7 +575,9 @@ for ($i=0; $i<7; $i++) {
         $displayStatus = "Pending";
         $statusColor = "#f39c12";
     } else {
-        $displayStatus = ucfirst($ru["status"]);
+        // Guard against null/empty status to avoid deprecated ucfirst(null)
+        $rawStatus = $ru["status"] ?? '';
+        $displayStatus = $rawStatus !== '' ? ucfirst((string) $rawStatus) : 'Unknown';
     }
 ?>
 <tr style="border-bottom:1px solid #f1f1f1;">

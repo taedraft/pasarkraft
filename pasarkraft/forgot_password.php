@@ -24,31 +24,111 @@ if (isset($_SESSION['reset_error'])) {
     unset($_SESSION['reset_error']);
 }
 
-// Function to send a real email using Submify zero-config cloud proxy
+function smtp_read_response($socket) {
+    $lines = [];
+    while (($line = fgets($socket, 1024)) !== false) {
+        $lines[] = rtrim($line, "\r\n");
+        if (strlen($line) >= 4 && $line[3] === ' ') {
+            break;
+        }
+    }
+
+    $code = 0;
+    if (!empty($lines) && preg_match('/^(\d{3})/', $lines[0], $match)) {
+        $code = intval($match[1]);
+    }
+
+    return [$code, implode("\n", $lines)];
+}
+
+function smtp_send_command($socket, $command, array $expected_codes) {
+    fwrite($socket, $command . "\r\n");
+    list($code, $response) = smtp_read_response($socket);
+    return [in_array($code, $expected_codes, true), $code, $response];
+}
+
+// Real SMTP mailer using Gmail-compatible settings from environment variables.
 function send_otp_via_email($to_email, $otp_code) {
-    $url = "https://submify.vercel.app/" . urlencode($to_email);
-    
-    $data = [
-        'Subject' => "PasarKraft Password Reset OTP",
-        'Verification Code (OTP)' => $otp_code,
-        'Instruction' => "You requested a password reset code for your PasarKraft buyer account. Enter the 6-digit verification code above to verify ownership and set a new password.",
-        'Security Notice' => "This code is confidential and will expire in 15 minutes. If you did not request this, please ignore this email."
-    ];
-    
-    $options = [
-        'http' => [
-            'header'  => "Content-type: application/x-www-form-urlencoded\r\n" .
-                         "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\r\n",
-            'method'  => 'POST',
-            'content' => http_build_query($data),
-            'ignore_errors' => true,
-            'timeout' => 5 // 5-second connection timeout
-        ]
-    ];
-    
-    $context  = stream_context_create($options);
-    @file_get_contents($url, false, $context);
-    return true;
+    $smtp_host = getenv('PK_SMTP_HOST') ?: 'smtp.gmail.com';
+    $smtp_port = intval(getenv('PK_SMTP_PORT') ?: 465);
+    $smtp_user = getenv('PK_SMTP_USER') ?: '';
+    $smtp_pass = getenv('PK_SMTP_PASS') ?: '';
+    $from_email = getenv('PK_SMTP_FROM') ?: $smtp_user;
+    $from_name = getenv('PK_SMTP_FROM_NAME') ?: 'PasarKraft';
+
+    if (empty($smtp_user) || empty($smtp_pass) || empty($from_email)) {
+        return false;
+    }
+
+    $socket = @stream_socket_client("ssl://{$smtp_host}:{$smtp_port}", $errno, $errstr, 30, STREAM_CLIENT_CONNECT);
+    if (!$socket) {
+        return false;
+    }
+
+    stream_set_timeout($socket, 30);
+    list($code,) = smtp_read_response($socket);
+    if ($code !== 220) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, 'EHLO ' . $smtp_host, [250]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, 'AUTH LOGIN', [334]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, base64_encode($smtp_user), [334]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, base64_encode($smtp_pass), [235]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, 'MAIL FROM:<' . $from_email . '>', [250]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, 'RCPT TO:<' . $to_email . '>', [250, 251]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    list($ok,) = smtp_send_command($socket, 'DATA', [354]);
+    if (!$ok) {
+        fclose($socket);
+        return false;
+    }
+
+    $subject = 'PasarKraft Password Reset OTP';
+    $body = "Hello,\r\n\r\nYour PasarKraft verification code is: {$otp_code}\r\n\r\nThis code expires in 15 minutes. If you did not request this reset, please ignore this email.\r\n";
+    $headers = [];
+    $headers[] = 'From: ' . $from_name . ' <' . $from_email . '>';
+    $headers[] = 'To: <' . $to_email . '>';
+    $headers[] = 'Subject: ' . $subject;
+    $headers[] = 'MIME-Version: 1.0';
+    $headers[] = 'Content-Type: text/plain; charset=UTF-8';
+
+    fwrite($socket, implode("\r\n", $headers) . "\r\n\r\n" . $body . "\r\n.\r\n");
+    list($code,) = smtp_read_response($socket);
+    fwrite($socket, "QUIT\r\n");
+    fclose($socket);
+
+    return $code === 250;
 }
 
 // POST processing logic
@@ -93,8 +173,13 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $update_stmt->execute();
         $update_stmt->close();
 
-        // Send actual real-life email to their Gmail inbox!
-        send_otp_via_email($email, $otp);
+        // Send actual verification email via SMTP.
+        if (!send_otp_via_email($email, $otp)) {
+            $_SESSION['reset_error'] = "Unable to send verification email. Please check SMTP credentials or try again later.";
+            $_SESSION['reset_step'] = 1;
+            header("Location: forgot_password.php");
+            exit();
+        }
 
         // Set session variables
         $_SESSION['reset_email'] = $email;
