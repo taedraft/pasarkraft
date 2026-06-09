@@ -42,7 +42,8 @@ loadEnv(__DIR__ . '/../../.env');
 loadEnv(__DIR__ . '/../.env');
 loadEnv(__DIR__ . '/.env');
 
-$apiKey = getenv('GEMINI_API_KEY') ?: ($_ENV['GEMINI_API_KEY'] ?? '');
+require_once __DIR__ . '/../env_loader.php';
+$apiKey = pk_env('GEMINI_API_KEY', '');
 
 // Process request
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

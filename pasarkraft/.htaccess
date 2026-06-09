@@ -1,0 +1,12 @@
+# Block direct access to secrets and setup utilities
+<FilesMatch "^(\.env|\.env\..*|pk_config\.env|setup_db\.php|setup_db\.sql)$">
+    Require all denied
+</FilesMatch>
+
+# Legacy Apache 2.2 fallback (some shared hosts)
+<IfModule !mod_authz_core.c>
+    <FilesMatch "^(\.env|\.env\..*|pk_config\.env|setup_db\.php|setup_db\.sql)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>

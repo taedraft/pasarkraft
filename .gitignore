@@ -1,4 +1,6 @@
 .env
+dist/
+scripts/deploy-ftp.ps1
 __pycache__/
 *.pyc
 *.pyo

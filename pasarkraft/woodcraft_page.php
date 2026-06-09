@@ -259,7 +259,7 @@ if ($result && $result->num_rows > 0) {
                                 <h3 class="product-title"><?php echo htmlspecialchars($item['title']); ?></h3>
                                 <span class="product-price">RM <?php echo number_format($item['price'], 2); ?></span>
                                 <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>&product_id=<?php echo $item['id']; ?>"
-                                    class="btn-chat">Chat with Seller</a>
+                                    class="btn-chat" data-product-id="<?php echo $item['id']; ?>">Chat with Seller</a>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -336,8 +336,7 @@ if ($result && $result->num_rows > 0) {
             cards.forEach(function (card) {
                 pkLogInteraction(card.getAttribute('data-product-id'), 'view', 1.0);
             });
-            return;
-        }
+        } else {
 
         const seenKey = 'pk_viewed_products';
         const seenProducts = new Set(JSON.parse(localStorage.getItem(seenKey) || '[]'));
@@ -355,6 +354,13 @@ if ($result && $result->num_rows > 0) {
 
         cards.forEach(function (card) {
             observer.observe(card);
+        });
+        }
+
+        document.querySelectorAll('.btn-chat[data-product-id]').forEach(function (link) {
+            link.addEventListener('click', function () {
+                pkLogInteraction(link.getAttribute('data-product-id'), 'click', 2.0);
+            });
         });
     });
 </script>

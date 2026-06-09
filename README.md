@@ -1,6 +1,37 @@
 # pasarkraft
 fyp project
 
+## Deploy to InfinityFree (automated prep)
+
+I cannot log into your hosting account, but you can prepare everything locally in one command:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/prepare-deploy.ps1
+```
+
+This creates:
+
+| Output | Where to put it on InfinityFree |
+|--------|----------------------------------|
+| `dist/pasarkraft-htdocs.zip` | File Manager → **htdocs** → **Upload & Unzip** |
+| `dist/server.env.template` | Edit credentials, upload as **`htdocs/pk_config.env`** (recommended). Dotfile `.env` may not work on InfinityFree. Protected by `.htaccess`. |
+
+After upload, sync recommendations from your PC:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/run-recommender-sync.ps1
+```
+
+### Optional: FTP automation
+
+1. Copy `scripts/deploy-ftp.example.ps1` → `scripts/deploy-ftp.ps1`
+2. Add FTP credentials from InfinityFree control panel
+3. Run `deploy-ftp.ps1` to upload the zip (still unzip manually in File Manager)
+
+### What the deploy script excludes
+
+`setup_db.php`, all `.py` files, `__pycache__`, local `.env`, and dev notes — safe for production `htdocs`.
+
 ## Recommender Workaround for InfinityFree
 
 InfinityFree blocks direct remote DB access from external Python jobs. Use API-based daily sync instead:

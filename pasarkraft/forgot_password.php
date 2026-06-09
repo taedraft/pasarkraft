@@ -49,12 +49,12 @@ function smtp_send_command($socket, $command, array $expected_codes) {
 
 // Real SMTP mailer using Gmail-compatible settings from environment variables.
 function send_otp_via_email($to_email, $otp_code) {
-    $smtp_host = getenv('PK_SMTP_HOST') ?: 'smtp.gmail.com';
-    $smtp_port = intval(getenv('PK_SMTP_PORT') ?: 465);
-    $smtp_user = getenv('PK_SMTP_USER') ?: '';
-    $smtp_pass = getenv('PK_SMTP_PASS') ?: '';
-    $from_email = getenv('PK_SMTP_FROM') ?: $smtp_user;
-    $from_name = getenv('PK_SMTP_FROM_NAME') ?: 'PasarKraft';
+    $smtp_host = pk_env('PK_SMTP_HOST', 'smtp.gmail.com');
+    $smtp_port = intval(pk_env('PK_SMTP_PORT', '465'));
+    $smtp_user = pk_env('PK_SMTP_USER', '');
+    $smtp_pass = pk_env('PK_SMTP_PASS', '');
+    $from_email = pk_env('PK_SMTP_FROM', $smtp_user);
+    $from_name = pk_env('PK_SMTP_FROM_NAME', 'PasarKraft');
 
     if (empty($smtp_user) || empty($smtp_pass) || empty($from_email)) {
         return false;

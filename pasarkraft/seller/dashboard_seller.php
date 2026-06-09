@@ -103,16 +103,16 @@ if ($product_views_count > 0) {
 }
 
 $engagement_products = [];
-$stmt_engagement = $conn->prepare("\
-    SELECT p.id, p.title,\
-        SUM(CASE WHEN ui.interaction_type = 'view' THEN 1 ELSE 0 END) AS views,\
-        SUM(CASE WHEN ui.interaction_type = 'click' THEN 1 ELSE 0 END) AS clicks\
-    FROM products p\
-    LEFT JOIN user_interactions ui ON ui.product_id = p.id\
-    WHERE p.seller_id = ?\
-    GROUP BY p.id, p.title\
-    ORDER BY views DESC, clicks DESC, p.created_at DESC\
-    LIMIT 5\
+$stmt_engagement = $conn->prepare("
+    SELECT p.id, p.title,
+        SUM(CASE WHEN ui.interaction_type = 'view' THEN 1 ELSE 0 END) AS views,
+        SUM(CASE WHEN ui.interaction_type = 'click' THEN 1 ELSE 0 END) AS clicks
+    FROM products p
+    LEFT JOIN user_interactions ui ON ui.product_id = p.id
+    WHERE p.seller_id = ?
+    GROUP BY p.id, p.title
+    ORDER BY views DESC, clicks DESC, p.created_at DESC
+    LIMIT 5
 ");
 $stmt_engagement->bind_param("i", $seller_id);
 $stmt_engagement->execute();
@@ -426,7 +426,9 @@ $stmt_inq->close();
                 <a href="myshop.php" <?php if (basename($_SERVER['PHP_SELF']) == 'myshop.php')
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Products</a>
                 <a href="chat_history_seller.php" <?php if (basename($_SERVER['PHP_SELF']) == 'chat_history_seller.php')
-                    echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Customer Chats <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
+                    echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Customer Chats
+                    <?php if (isset($unread_count) && $unread_count > 0)
+                        echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?></a>
                 <div class="profile-dropdown-container">
                     <div class="profile-icon"><i class="far fa-user-circle"></i></div>
                     <div class="profile-dropdown-menu">
@@ -535,14 +537,16 @@ $stmt_inq->close();
 
                 <div class="engagement-bars">
                     <?php if (empty($engagement_products)): ?>
-                        <p style="color:#94a3b8; margin:0;">No engagement logs yet. Product views and click-throughs will appear here once buyers browse your listings.</p>
+                        <p style="color:#94a3b8; margin:0;">No engagement logs yet. Product views and click-throughs will
+                            appear here once buyers browse your listings.</p>
                     <?php else: ?>
                         <?php
-                            $maxViews = 0;
-                            foreach ($engagement_products as $eng) {
-                                if ($eng['views'] > $maxViews) $maxViews = $eng['views'];
-                            }
-                            $maxViews = max(1, $maxViews);
+                        $maxViews = 0;
+                        foreach ($engagement_products as $eng) {
+                            if ($eng['views'] > $maxViews)
+                                $maxViews = $eng['views'];
+                        }
+                        $maxViews = max(1, $maxViews);
                         ?>
                         <?php foreach ($engagement_products as $eng): ?>
                             <?php $width = round(($eng['views'] / $maxViews) * 100); ?>
@@ -649,7 +653,8 @@ $stmt_inq->close();
                                 <td>
                                     <div class="user-cell">
                                         <div class="user-avatar" style="background:<?php echo $avatar_bg; ?>;">
-                                            <?php echo $buyer_initial; ?></div>
+                                            <?php echo $buyer_initial; ?>
+                                        </div>
                                         <span><?php echo htmlspecialchars($inq['buyer_name']); ?></span>
                                     </div>
                                 </td>
