@@ -4,45 +4,17 @@
  * Integrates with Google Gemini API to provide interactive guide services for Malaysian crafts.
  */
 
-// Production error-handling setup
-ini_set('display_errors', 0);
+// Production error-handling setup (Change to 1 temporarily if debugging errors directly)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 header('Content-Type: application/json; charset=utf-8');
 
-/**
- * Loads configuration from .env files.
- */
-function loadEnv($path) {
-    if (!file_exists($path)) return;
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if (empty($line) || strpos($line, '#') === 0) continue;
-        if (strpos($line, '=') === false) continue;
-        list($name, $value) = explode('=', $line, 2);
-        $name = trim($name);
-        $value = trim($value);
-        
-        // Strip single or double quotes
-        if (preg_match('/^"([^"]*)"$/', $value, $m) || preg_match('/^\'([^\']*)\'$/', $value, $m)) {
-            $value = $m[1];
-        }
-        
-        if (!array_key_exists($name, $_SERVER) && !array_key_exists($name, $_ENV)) {
-            putenv(sprintf('%s=%s', $name, $value));
-            $_ENV[$name] = $value;
-            $_SERVER[$name] = $value;
-        }
-    }
-}
+// Require db_connect to fetch our global secure constants cleanly
+require_once __DIR__ . '/db_connect.php';
 
-// Load env files
-loadEnv(__DIR__ . '/../../.env');
-loadEnv(__DIR__ . '/../.env');
-loadEnv(__DIR__ . '/.env');
-
-require_once __DIR__ . '/../env_loader.php';
+// Fetch the API Key from the global configuration engine
 $apiKey = pk_env('GEMINI_API_KEY', '');
 
 // Process request
@@ -52,9 +24,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit();
 }
 
-$input = json_decode(file_get_contents('php://input'), true);
-$userMessage = $input['message'] ?? '';
-$chatHistory = $input['history'] ?? [];
+//  FIX: Read traditional form-encoded data instead of raw JSON stream
+$userMessage = isset($_POST['message']) ? trim($_POST['message']) : '';
+
+// Decode the history array string passed from URLSearchParams
+$chatHistoryRaw = isset($_POST['history']) ? $_POST['history'] : '[]';
+$chatHistory = json_decode($chatHistoryRaw, true);
+if (!is_array($chatHistory)) {
+    $chatHistory = [];
+}
 
 if (empty($userMessage)) {
     http_response_code(400);
@@ -64,7 +42,7 @@ if (empty($userMessage)) {
 
 // Fallback logic if API key is not configured
 if (empty($apiKey) || $apiKey === 'YOUR_GEMINI_API_KEY') {
-    $reply = "I'm currently running in offline mode (GEMINI_API_KEY is not configured in .env).\n\n";
+    $reply = "I'm currently running in offline mode (GEMINI_API_KEY is not configured).\n\n";
     $msgLower = strtolower($userMessage);
     if (strpos($msgLower, 'batik') !== false) {
         $reply .= "Batik is a traditional wax-resist fabric art in Malaysia. We feature authentic hand-drawn (canting) and block-printed (cap) shirts and sarongs. Feel free to contact our sellers directly via the 'Chat with Seller' button for customization inquiries!";
@@ -126,6 +104,10 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, [
     'Content-Type: application/json'
 ]);
+
+// Crucial InfinityFree Fix: Disable peer verification to prevent missing SSL cert crashes
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);

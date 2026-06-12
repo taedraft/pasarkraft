@@ -24,7 +24,8 @@ if (isset($_SESSION['reset_error'])) {
     unset($_SESSION['reset_error']);
 }
 
-function smtp_read_response($socket) {
+function smtp_read_response($socket)
+{
     $lines = [];
     while (($line = fgets($socket, 1024)) !== false) {
         $lines[] = rtrim($line, "\r\n");
@@ -41,14 +42,16 @@ function smtp_read_response($socket) {
     return [$code, implode("\n", $lines)];
 }
 
-function smtp_send_command($socket, $command, array $expected_codes) {
+function smtp_send_command($socket, $command, array $expected_codes)
+{
     fwrite($socket, $command . "\r\n");
     list($code, $response) = smtp_read_response($socket);
     return [in_array($code, $expected_codes, true), $code, $response];
 }
 
 // Real SMTP mailer using Gmail-compatible settings from environment variables.
-function send_otp_via_email($to_email, $otp_code) {
+function send_otp_via_email($to_email, $otp_code)
+{
     $smtp_host = pk_env('PK_SMTP_HOST', 'smtp.gmail.com');
     $smtp_port = intval(pk_env('PK_SMTP_PORT', '465'));
     $smtp_user = pk_env('PK_SMTP_USER', '');
@@ -66,49 +69,49 @@ function send_otp_via_email($to_email, $otp_code) {
     }
 
     stream_set_timeout($socket, 30);
-    list($code,) = smtp_read_response($socket);
+    list($code, ) = smtp_read_response($socket);
     if ($code !== 220) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, 'EHLO ' . $smtp_host, [250]);
+    list($ok, ) = smtp_send_command($socket, 'EHLO ' . $smtp_host, [250]);
     if (!$ok) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, 'AUTH LOGIN', [334]);
+    list($ok, ) = smtp_send_command($socket, 'AUTH LOGIN', [334]);
     if (!$ok) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, base64_encode($smtp_user), [334]);
+    list($ok, ) = smtp_send_command($socket, base64_encode($smtp_user), [334]);
     if (!$ok) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, base64_encode($smtp_pass), [235]);
+    list($ok, ) = smtp_send_command($socket, base64_encode($smtp_pass), [235]);
     if (!$ok) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, 'MAIL FROM:<' . $from_email . '>', [250]);
+    list($ok, ) = smtp_send_command($socket, 'MAIL FROM:<' . $from_email . '>', [250]);
     if (!$ok) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, 'RCPT TO:<' . $to_email . '>', [250, 251]);
+    list($ok, ) = smtp_send_command($socket, 'RCPT TO:<' . $to_email . '>', [250, 251]);
     if (!$ok) {
         fclose($socket);
         return false;
     }
 
-    list($ok,) = smtp_send_command($socket, 'DATA', [354]);
+    list($ok, ) = smtp_send_command($socket, 'DATA', [354]);
     if (!$ok) {
         fclose($socket);
         return false;
@@ -124,7 +127,7 @@ function send_otp_via_email($to_email, $otp_code) {
     $headers[] = 'Content-Type: text/plain; charset=UTF-8';
 
     fwrite($socket, implode("\r\n", $headers) . "\r\n\r\n" . $body . "\r\n.\r\n");
-    list($code,) = smtp_read_response($socket);
+    list($code, ) = smtp_read_response($socket);
     fwrite($socket, "QUIT\r\n");
     fclose($socket);
 
@@ -168,7 +171,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $expiry = date('Y-m-d H:i:s', strtotime('+15 minutes'));
 
         // Save OTP to user record
-        $update_stmt = $conn->prepare("UPDATE users SET reset_token = ?, reset_token_expiry = ? WHERE email = ?");
+        $update_stmt = $conn->prepare("UPDATE users SET reset_token = ?, reset_token_expires_at = ? WHERE email = ?");
         $update_stmt->bind_param("sss", $otp, $expiry, $email);
         $update_stmt->execute();
         $update_stmt->close();
@@ -203,7 +206,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         // Verify in database with time check
-        $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND reset_token = ? AND reset_token_expiry >= NOW()");
+        $stmt = $conn->prepare("SELECT id FROM users WHERE email = ? AND reset_token = ? AND reset_token_expires_at >= NOW()");
         $stmt->bind_param("ss", $email, $otp_entered);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -245,10 +248,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
         // Passwords match. Hash and update DB
         $hashed_password = password_hash($new_password, PASSWORD_BCRYPT);
-        
-        $stmt = $conn->prepare("UPDATE users SET password = ?, reset_token = NULL, reset_token_expiry = NULL WHERE email = ?");
+
+        $stmt = $conn->prepare("UPDATE users SET password = ?, reset_token = NULL, reset_token_expires_at = NULL WHERE email = ?");
         $stmt->bind_param("ss", $hashed_password, $email);
-        
+
         if ($stmt->execute()) {
             $stmt->close();
             // Clear password reset session state
@@ -434,6 +437,7 @@ if (isset($_SESSION['otp_sent_alert']) && $_SESSION['otp_sent_alert'] === true) 
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0);
@@ -518,10 +522,25 @@ if (isset($_SESSION['otp_sent_alert']) && $_SESSION['otp_sent_alert'] === true) 
         }
 
         @keyframes bounceIn {
-            0% { transform: scale(0.3); opacity: 0; }
-            50% { transform: scale(1.05); opacity: 0.8; }
-            70% { transform: scale(0.9); opacity: 0.9; }
-            100% { transform: scale(1); opacity: 1; }
+            0% {
+                transform: scale(0.3);
+                opacity: 0;
+            }
+
+            50% {
+                transform: scale(1.05);
+                opacity: 0.8;
+            }
+
+            70% {
+                transform: scale(0.9);
+                opacity: 0.9;
+            }
+
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         .helper-text {
@@ -545,25 +564,30 @@ if (isset($_SESSION['otp_sent_alert']) && $_SESSION['otp_sent_alert'] === true) 
     <!-- Main Content Wrapper -->
     <div class="login-page-wrapper">
         <div class="login-container">
-            
+
             <!-- Progress Tracker -->
             <div class="step-progress-bar">
-                <div class="step-node <?php echo ($current_step >= 1) ? 'active' : ''; ?> <?php echo ($current_step > 1) ? 'completed' : ''; ?>">
-                    <div class="step-circle"><?php echo ($current_step > 1) ? '<i class="fas fa-check"></i>' : '1'; ?></div>
+                <div
+                    class="step-node <?php echo ($current_step >= 1) ? 'active' : ''; ?> <?php echo ($current_step > 1) ? 'completed' : ''; ?>">
+                    <div class="step-circle"><?php echo ($current_step > 1) ? '<i class="fas fa-check"></i>' : '1'; ?>
+                    </div>
                     <div class="step-label">Email</div>
                 </div>
-                <div class="step-node <?php echo ($current_step >= 2) ? 'active' : ''; ?> <?php echo ($current_step > 2) ? 'completed' : ''; ?>">
-                    <div class="step-circle"><?php echo ($current_step > 2) ? '<i class="fas fa-check"></i>' : '2'; ?></div>
+                <div
+                    class="step-node <?php echo ($current_step >= 2) ? 'active' : ''; ?> <?php echo ($current_step > 2) ? 'completed' : ''; ?>">
+                    <div class="step-circle"><?php echo ($current_step > 2) ? '<i class="fas fa-check"></i>' : '2'; ?>
+                    </div>
                     <div class="step-label">OTP Code</div>
                 </div>
-                <div class="step-node <?php echo ($current_step >= 3) ? 'active' : ''; ?> <?php echo ($current_step > 3) ? 'completed' : ''; ?>">
+                <div
+                    class="step-node <?php echo ($current_step >= 3) ? 'active' : ''; ?> <?php echo ($current_step > 3) ? 'completed' : ''; ?>">
                     <div class="step-circle">3</div>
                     <div class="step-label">Password</div>
                 </div>
             </div>
 
             <div class="login-content" style="padding-top: 1rem;">
-                
+
                 <!-- Display Errors -->
                 <?php if (!empty($error_message)): ?>
                     <div
@@ -576,18 +600,19 @@ if (isset($_SESSION['otp_sent_alert']) && $_SESSION['otp_sent_alert'] === true) 
                 <!-- Step forms -->
                 <?php if ($current_step === 1): ?>
                     <h2>Forgot Password?</h2>
-                    <p>Enter your registered email address to verify existence and send a password reset OTP code directly to your Gmail.</p>
-                    
+                    <p>Enter your registered email address to verify existence and send a password reset OTP code directly
+                        to your Gmail.</p>
+
                     <form class="login-form" action="forgot_password.php" method="POST">
                         <input type="hidden" name="step" value="1">
-                        
+
                         <div class="form-group">
                             <label for="email">Email Address</label>
                             <input type="email" id="email" name="email" placeholder="Enter your email address" required>
                         </div>
-                        
+
                         <button type="submit" class="btn btn-full">Send OTP to Email</button>
-                        
+
                         <div class="form-footer" style="margin-top: 1.5rem;">
                             <a href="buyer/login_buyer.php">Back to Buyer Login</a>
                         </div>
@@ -595,44 +620,53 @@ if (isset($_SESSION['otp_sent_alert']) && $_SESSION['otp_sent_alert'] === true) 
 
                 <?php elseif ($current_step === 2): ?>
                     <h2>Enter Reset OTP</h2>
-                    <p>We've sent a secure 6-digit verification code to your Gmail inbox at <strong><?php echo htmlspecialchars($reset_email); ?></strong>. Please check your inbox (and spam folder) and enter it below.</p>
-                    
+                    <p>We've sent a secure 6-digit verification code to your Gmail inbox at
+                        <strong><?php echo htmlspecialchars($reset_email); ?></strong>. Please check your inbox (and spam
+                        folder) and enter it below.
+                    </p>
+
                     <form class="login-form" action="forgot_password.php" method="POST">
                         <input type="hidden" name="step" value="2">
-                        
+
                         <div class="form-group">
                             <label for="otp_code">OTP Code</label>
-                            <input type="text" id="otp_code" name="otp_code" placeholder="Enter 6-digit OTP code" required maxlength="6" pattern="\d{6}" style="text-align: center; letter-spacing: 4px; font-size: 1.25rem; font-weight: 600;">
+                            <input type="text" id="otp_code" name="otp_code" placeholder="Enter 6-digit OTP code" required
+                                maxlength="6" pattern="\d{6}"
+                                style="text-align: center; letter-spacing: 4px; font-size: 1.25rem; font-weight: 600;">
                             <span class="helper-text"><i class="fas fa-info-circle"></i> Code expires in 15 minutes.</span>
                         </div>
-                        
+
                         <button type="submit" class="btn btn-full">Verify Code</button>
-                        
+
                         <div class="form-footer" style="margin-top: 1.5rem; display: flex; justify-content: space-between;">
-                            <a href="forgot_password.php?action=cancel" style="color: #64748b;"><i class="fas fa-arrow-left"></i> Cancel</a>
+                            <a href="forgot_password.php?action=cancel" style="color: #64748b;"><i
+                                    class="fas fa-arrow-left"></i> Cancel</a>
                             <a href="forgot_password.php?action=cancel" style="color: var(--accent-color);">Resend Email</a>
                         </div>
                     </form>
 
                 <?php elseif ($current_step === 3): ?>
                     <h2>Create New Password</h2>
-                    <p>Resetting password for <strong><?php echo htmlspecialchars($reset_email); ?></strong>. Enter and confirm your new secure password.</p>
-                    
+                    <p>Resetting password for <strong><?php echo htmlspecialchars($reset_email); ?></strong>. Enter and
+                        confirm your new secure password.</p>
+
                     <form class="login-form" action="forgot_password.php" method="POST">
                         <input type="hidden" name="step" value="3">
-                        
+
                         <div class="form-group">
                             <label for="new_password">New Password</label>
-                            <input type="password" id="new_password" name="new_password" placeholder="Enter new password" required minlength="5">
+                            <input type="password" id="new_password" name="new_password" placeholder="Enter new password"
+                                required minlength="5">
                         </div>
-                        
+
                         <div class="form-group">
                             <label for="confirm_password">Confirm New Password</label>
-                            <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm new password" required minlength="5">
+                            <input type="password" id="confirm_password" name="confirm_password"
+                                placeholder="Confirm new password" required minlength="5">
                         </div>
-                        
+
                         <button type="submit" class="btn btn-full">Reset Password</button>
-                        
+
                         <div class="form-footer" style="margin-top: 1.5rem;">
                             <a href="forgot_password.php?action=cancel" style="color: #64748b;">Cancel Reset</a>
                         </div>
@@ -655,7 +689,9 @@ if (isset($_SESSION['otp_sent_alert']) && $_SESSION['otp_sent_alert'] === true) 
                 <i class="fas fa-paper-plane"></i>
             </div>
             <h3>OTP Code Sent!</h3>
-            <p>We have sent a password reset OTP code to your email - <strong><?php echo htmlspecialchars($reset_email); ?></strong></p>
+            <p>We have sent a password reset OTP code to your email -
+                <strong><?php echo htmlspecialchars($reset_email); ?></strong>
+            </p>
             <button class="modal-btn" onclick="closeModal()">Got it</button>
         </div>
     </div>

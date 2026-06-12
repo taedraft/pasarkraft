@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     role ENUM('buyer', 'seller', 'admin') DEFAULT 'buyer',
     reset_token VARCHAR(10) DEFAULT NULL,
-    reset_token_expiry DATETIME DEFAULT NULL,
+    reset_token_expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 

@@ -752,11 +752,16 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
             body.appendChild(typingDiv);
             body.scrollTop = body.scrollHeight;
 
-            // Call backend API
+            // Prepare URL-encoded form data parameters to bypass InfinityFree AES firewall
+            const formData = new URLSearchParams();
+            formData.append('message', messageText);
+            formData.append('history', JSON.stringify(history));
+
+            // Call backend API matching traditional form formatting
             fetch('api/chatbot.php', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message: messageText, history: history })
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData.toString()
             })
                 .then(res => res.json())
                 .then(data => {

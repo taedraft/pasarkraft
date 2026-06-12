@@ -2,9 +2,10 @@
 /**
  * Shared PHP bridge that executes recommender.py and returns decoded recommendations.
  */
-require_once __DIR__ . '/env_loader.php';
+require_once __DIR__ . '/db_connect.php';
 
-function pk_parse_recommender_output(array $output) {
+function pk_parse_recommender_output(array $output)
+{
     if (empty($output)) {
         return [];
     }
@@ -26,7 +27,8 @@ function pk_parse_recommender_output(array $output) {
     return [];
 }
 
-function pk_run_python_recommender($userId, $limit, array $dbConfig = []) {
+function pk_run_python_recommender($userId, $limit, array $dbConfig = [])
+{
     $python_bin = pk_env('PK_PYTHON_BIN', 'python');
     $script_path = __DIR__ . DIRECTORY_SEPARATOR . 'recommender.py';
 
@@ -71,7 +73,8 @@ function pk_run_python_recommender($userId, $limit, array $dbConfig = []) {
     return pk_parse_recommender_output($output);
 }
 
-function pk_fetch_recommended_products_by_ids($conn, $recommendations) {
+function pk_fetch_recommended_products_by_ids($conn, $recommendations)
+{
     if (empty($recommendations)) {
         return [];
     }
