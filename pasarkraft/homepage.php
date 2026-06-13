@@ -41,6 +41,19 @@ $where = [];
 $params = [];
 $types = '';
 
+// Check if approval_status column exists (defensive — may not be in DB yet)
+$has_approval_col = false;
+$appr_col_res = $conn->query("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'artisans' AND COLUMN_NAME = 'approval_status'");
+if ($appr_col_res) {
+    $has_approval_col = ($appr_col_res->fetch_assoc()['c'] ?? 0) > 0;
+}
+
+// Base filters always applied: in-stock only + approved sellers only
+$base_where = ["p.stock > 0"];
+if ($has_approval_col) {
+    $base_where[] = "COALESCE(a.approval_status, 'approved') = 'approved'";
+}
+
 if ($filter_query !== '') {
     $like = '%' . $filter_query . '%';
     $where[] = "(p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ?)";
@@ -79,9 +92,10 @@ if ($filter_color !== '') {
 }
 
 $sql = "SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname FROM products p LEFT JOIN artisans a ON p.seller_id = a.user_id";
-if (!empty($where)) {
-    $sql .= " WHERE " . implode(" AND ", $where);
-}
+
+// Merge base filters (stock, approval) with any search/filter conditions
+$all_where = array_merge($base_where, $where);
+$sql .= " WHERE " . implode(" AND ", $all_where);
 $sql .= " ORDER BY p.created_at DESC LIMIT 8";
 
 $stmt = $conn->prepare($sql);
@@ -405,11 +419,16 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
         <?php if (!empty($products)): ?>
             <div class="product-grid">
                 <?php foreach ($products as $prod):
-                    $img_src = htmlspecialchars($prod['image_path'] ?? '');
-                    if (empty($img_src)) {
-                        $img_src = 'png/batik_shirt.png';
-                    } elseif (strpos($img_src, '/') === false) {
-                        $img_src = 'png/' . $img_src;
+                    $img_raw = $prod['image_path'] ?? '';
+                    if (empty($img_raw)) {
+                        // No image uploaded — use category-based placeholder
+                        $img_src = ($prod['category'] === 'Woodcraft') ? 'png/wood_art.png' : 'png/batik_shirt.png';
+                    } elseif (strpos($img_raw, '/') === false) {
+                        // Legacy format: just a filename, look in png/
+                        $img_src = 'png/' . htmlspecialchars($img_raw);
+                    } else {
+                        // Modern format: relative path like uploads/filename.jpg
+                        $img_src = htmlspecialchars($img_raw);
                     }
                     ?>
                     <article class="product-card" data-product-id="<?php echo $prod['id']; ?>">
