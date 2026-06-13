@@ -3,6 +3,12 @@ session_start();
 header('Content-Type: application/json');
 require '../db_connect.php';
 
+// Ensure is_system column exists (idempotent across all MySQL/MariaDB versions)
+$_col_chk = $conn->query("SHOW COLUMNS FROM messages LIKE 'is_system'");
+if ($_col_chk && $_col_chk->num_rows === 0) {
+    $conn->query("ALTER TABLE messages ADD COLUMN is_system TINYINT(1) NOT NULL DEFAULT 0");
+}
+
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['error' => 'unauthorized', 'messages' => [], 'unread_count' => 0]);
     exit;
@@ -35,7 +41,8 @@ $upd->close();
 
 // Fetch only new messages (id > after_id)
 $stmt = $conn->prepare(
-    "SELECT m.id, m.sender_id, m.message, m.is_offer, m.offer_amount, m.created_at,
+    "SELECT m.id, m.sender_id, m.message, m.is_offer, m.offer_amount,
+            m.is_read, m.is_system, m.created_at,
             u.firstname, u.lastname
      FROM messages m
      JOIN users u ON m.sender_id = u.id

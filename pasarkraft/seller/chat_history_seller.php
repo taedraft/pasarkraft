@@ -5,6 +5,12 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
 require '../db_connect.php';
 
+// Ensure is_system column exists (idempotent)
+$_col_chk = $conn->query("SHOW COLUMNS FROM messages LIKE 'is_system'");
+if ($_col_chk && $_col_chk->num_rows === 0) {
+    $conn->query("ALTER TABLE messages ADD COLUMN is_system TINYINT(1) NOT NULL DEFAULT 0");
+}
+
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'seller') {
     $_SESSION['login_error'] = "Log in as a seller to view messages.";
     header("Location: login_seller.php");
@@ -76,8 +82,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
         $new_status = $_POST['update_status'];
         $u_stmt = $conn->prepare("UPDATE inquiries SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND seller_id = ?");
         $u_stmt->bind_param("sii", $new_status, $active_inquiry_id, $seller_id);
-        if ($u_stmt->execute() && ($new_status === 'Deal Agreed' || $new_status === 'Sold')) {
-            // Fetch buyer_id and product_id to log purchase
+        if ($u_stmt->execute()) {
+            // Fetch buyer_id and product_id
             $inq_info = $conn->prepare("SELECT buyer_id, product_id FROM inquiries WHERE id = ?");
             $inq_info->bind_param("i", $active_inquiry_id);
             if ($inq_info->execute()) {
@@ -86,17 +92,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
                     $b_id = intval($res_info['buyer_id']);
                     $p_id = intval($res_info['product_id']);
 
-                    // Log purchase interaction (value = 5.0) if not already logged
-                    $pur_chk = $conn->prepare("SELECT id FROM user_interactions WHERE user_id = ? AND product_id = ? AND interaction_type = 'purchase'");
-                    $pur_chk->bind_param("ii", $b_id, $p_id);
-                    $pur_chk->execute();
-                    if ($pur_chk->get_result()->num_rows == 0) {
-                        $pur_ins = $conn->prepare("INSERT INTO user_interactions (user_id, product_id, interaction_type, interaction_value) VALUES (?, ?, 'purchase', 5.0)");
-                        $pur_ins->bind_param("ii", $b_id, $p_id);
-                        $pur_ins->execute();
-                        $pur_ins->close();
+                    // Insert system message to announce status change in chat
+                    $status_labels = [
+                        'Deal Agreed'   => '🤝 Seller accepted the deal.',
+                        'No Deal'       => '❌ No deal was reached.',
+                        'Sold'          => '✅ Transaction marked as sold.',
+                        'In Discussion' => '🔄 Deal cancelled — back to negotiation.',
+                    ];
+                    if (isset($status_labels[$new_status])) {
+                        $sys_msg = $status_labels[$new_status];
+                        $sys_ins = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message, is_system) VALUES (?, ?, ?, ?, 1)");
+                        $sys_ins->bind_param("iiis", $active_inquiry_id, $seller_id, $b_id, $sys_msg);
+                        $sys_ins->execute();
+                        $sys_ins->close();
                     }
-                    $pur_chk->close();
+
+                    // Log purchase interaction if applicable
+                    if ($new_status === 'Deal Agreed' || $new_status === 'Sold') {
+                        $pur_chk = $conn->prepare("SELECT id FROM user_interactions WHERE user_id = ? AND product_id = ? AND interaction_type = 'purchase'");
+                        $pur_chk->bind_param("ii", $b_id, $p_id);
+                        $pur_chk->execute();
+                        if ($pur_chk->get_result()->num_rows == 0) {
+                            $pur_ins = $conn->prepare("INSERT INTO user_interactions (user_id, product_id, interaction_type, interaction_value) VALUES (?, ?, 'purchase', 5.0)");
+                            $pur_ins->bind_param("ii", $b_id, $p_id);
+                            $pur_ins->execute();
+                            $pur_ins->close();
+                        }
+                        $pur_chk->close();
+                    }
                 }
             }
             $inq_info->close();
@@ -505,6 +528,16 @@ if ($active_inquiry_id > 0) {
             line-height: 1.5;
             white-space: pre-wrap;
         }
+        /* Offer bubble (#6) */
+        .message.offer-bubble { background: linear-gradient(135deg,#27ae60,#2ecc71) !important; color: #fff; border: none !important; }
+        .message.offer-bubble.received { background: linear-gradient(135deg,#e67e22,#f39c12) !important; }
+        .offer-amount-display { font-size: 1.05rem; font-weight: 700; display: block; margin-bottom: 4px; }
+        /* System message pill (#7) */
+        .message-system { align-self: center !important; max-width: 85%; background: #f0f4f8; color: #718096; padding: 5px 16px; border-radius: 20px; font-size: 0.78rem; text-align: center; font-style: italic; }
+        /* Read receipt (#8) */
+        .msg-read-inline { font-size: 0.65rem; opacity: 0.85; color: rgba(255,255,255,0.85); }
+        /* Product thumbnail (#9) */
+        .product-thumb { width: 18px; height: 18px; object-fit: cover; border-radius: 2px; vertical-align: middle; margin-right: 3px; }
     </style>
 </head>
 
@@ -566,7 +599,7 @@ if ($active_inquiry_id > 0) {
                                 <h4><?php echo htmlspecialchars($display); ?> <span
                                         class="status-badge status-<?php echo $statusClassFormat; ?>"><?php echo htmlspecialchars($inq['status']); ?></span>
                                 </h4>
-                                <p><?php echo htmlspecialchars($inq['product_title']); ?></p>
+                                <p><?php if (!empty($inq['image_path'])): ?><img src="../<?php echo htmlspecialchars($inq['image_path']); ?>" class="product-thumb" onerror="this.style.display='none'"><?php endif; ?><?php echo htmlspecialchars($inq['product_title']); ?></p>
                                 <?php if ($inq['current_offer']): ?>
                                     <p style="color:#27ae60; font-weight:600;">Offer: RM
                                         <?php echo number_format($inq['current_offer'], 2); ?></p>
@@ -617,19 +650,19 @@ if ($active_inquiry_id > 0) {
                     <?php else: ?>
                         <?php foreach ($messages as $msg): ?>
                             <?php $is_mine = ($msg['sender_id'] == $seller_id); ?>
-                            <!-- Offer Message -->
-                            <?php if ($msg['is_offer']): ?>
-                                <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?>"
-                                    style="border: 2px solid <?php echo $is_mine ? '#2ecc71' : '#f1c40f'; ?>;">
-                                    <strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM
-                                        <?php echo number_format($msg['offer_amount'], 2); ?></strong><br>
-                                    <?php echo htmlspecialchars($msg['message']); ?>
-                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?></span>
+                            <?php $seen = ($is_mine && !empty($msg['is_read'])) ? ' &middot; <span class="msg-read-inline">✓ Seen</span>' : ''; ?>
+                            <?php if (!empty($msg['is_system'])): ?>
+                                <div class="message-system"><?php echo htmlspecialchars($msg['message']); ?></div>
+                            <?php elseif ($msg['is_offer']): ?>
+                                <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?> offer-bubble">
+                                    <span class="offer-amount-display"><i class="fas fa-tag"></i> RM <?php echo number_format($msg['offer_amount'], 2); ?></span>
+                                    <?php $om = $msg['message']; if ($om && $om !== 'Sent an offer.' && $om !== 'Counter-offer sent.'): ?><span style="opacity:0.9;font-size:0.9rem;display:block;"><?php echo htmlspecialchars($om); ?></span><?php endif; ?>
+                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?><?php echo $seen; ?></span>
                                 </div>
                             <?php else: ?>
                                 <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?>">
                                     <?php echo htmlspecialchars($msg['message']); ?>
-                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?></span>
+                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?><?php echo $seen; ?></span>
                                 </div>
                             <?php endif; ?>
                         <?php endforeach; ?>
@@ -696,16 +729,22 @@ if ($active_inquiry_id > 0) {
                         var cls  = mine ? 'sent' : 'received';
                         var d    = new Date(msg.created_at.replace(' ', 'T'));
                         var time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                        var seen = (mine && parseInt(msg.is_read)) ? ' · <span class="msg-read-inline">✓ Seen</span>' : '';
+                        if (parseInt(msg.is_system)) {
+                            return '<div class="message-system">' + escHtml(msg.message) + '</div>';
+                        }
                         if (parseInt(msg.is_offer)) {
-                            var bc = mine ? '#2ecc71' : '#f1c40f';
-                            return '<div class="message ' + cls + '" style="border:2px solid ' + bc + ';">' +
-                                   '<strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM ' +
-                                   parseFloat(msg.offer_amount).toFixed(2) + '</strong><br>' +
-                                   escHtml(msg.message) +
-                                   '<span class="msg-time">' + time + '</span></div>';
+                            var om = msg.message;
+                            var omHtml = (om && om !== 'Sent an offer.' && om !== 'Counter-offer sent.')
+                                ? '<span style="opacity:0.9;font-size:0.9rem;display:block;">' + escHtml(om) + '</span>' : '';
+                            return '<div class="message ' + cls + ' offer-bubble">' +
+                                   '<span class="offer-amount-display"><i class="fas fa-tag"></i> RM ' +
+                                   parseFloat(msg.offer_amount).toFixed(2) + '</span>' +
+                                   omHtml +
+                                   '<span class="msg-time">' + time + seen + '</span></div>';
                         }
                         return '<div class="message ' + cls + '">' + escHtml(msg.message) +
-                               '<span class="msg-time">' + time + '</span></div>';
+                               '<span class="msg-time">' + time + seen + '</span></div>';
                     }
 
                     function pollMessages() {

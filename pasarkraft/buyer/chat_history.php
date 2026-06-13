@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
 
 // Fetch inquiries
 $inquiries = [];
-$stmt = $conn->prepare("SELECT i.*, a.shopname as seller_name, p.title as product_title FROM inquiries i JOIN artisans a ON i.seller_id = a.user_id JOIN products p ON i.product_id = p.id WHERE i.buyer_id = ? ORDER BY i.updated_at DESC");
+$stmt = $conn->prepare("SELECT i.*, a.shopname as seller_name, p.title as product_title, p.image_path FROM inquiries i JOIN artisans a ON i.seller_id = a.user_id JOIN products p ON i.product_id = p.id WHERE i.buyer_id = ? ORDER BY i.updated_at DESC");
 $stmt->bind_param("i", $buyer_id);
 $stmt->execute();
 $inq_res = $stmt->get_result();
@@ -191,6 +191,16 @@ if ($active_inquiry_id > 0) {
         .btn-send:hover { transform: scale(1.05); }
         .empty-chat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #95a5a6; }
         .empty-chat i { font-size: 3rem; margin-bottom: 15px; opacity: 0.5; }
+        /* Offer bubble (#6) */
+        .message.offer-bubble { background: linear-gradient(135deg,#e67e22,#f39c12) !important; color: #fff; border: none !important; }
+        .message.offer-bubble.received { background: linear-gradient(135deg,#16a085,#27ae60) !important; }
+        .offer-amount-display { font-size: 1.05rem; font-weight: 700; display: block; margin-bottom: 4px; }
+        /* System message pill (#7) */
+        .message-system { align-self: center !important; max-width: 85%; background: #f0f4f8; color: #718096; padding: 5px 16px; border-radius: 20px; font-size: 0.78rem; text-align: center; font-style: italic; }
+        /* Read receipt (#8) */
+        .msg-read-inline { font-size: 0.65rem; opacity: 0.85; color: rgba(255,255,255,0.85); }
+        /* Product thumbnail (#9) */
+        .product-thumb { width: 18px; height: 18px; object-fit: cover; border-radius: 2px; vertical-align: middle; margin-right: 3px; }
     </style>
 </head>
 <body>
@@ -228,7 +238,7 @@ if ($active_inquiry_id > 0) {
                             <div class="contact-avatar" style="background:#e67e22;"><?php echo strtoupper(substr($inq['seller_name'], 0, 1)); ?></div>
                             <div class="contact-info">
                                 <h4><?php echo htmlspecialchars($inq['seller_name']); ?> <span class="status-badge status-<?php echo $statusClassFormat; ?>"><?php echo htmlspecialchars($inq['status']); ?></span></h4>
-                                <p><?php echo htmlspecialchars($inq['product_title']); ?></p>
+                                <p><?php if (!empty($inq['image_path'])): ?><img src="../<?php echo htmlspecialchars($inq['image_path']); ?>" class="product-thumb" onerror="this.style.display='none'"><?php endif; ?><?php echo htmlspecialchars($inq['product_title']); ?></p>
                                 <?php if($inq['current_offer']): ?>
                                     <p style="color:#27ae60; font-weight:600;">Offer: RM <?php echo number_format($inq['current_offer'], 2); ?></p>
                                 <?php endif; ?>
@@ -258,17 +268,19 @@ if ($active_inquiry_id > 0) {
                     <?php else: ?>
                         <?php foreach($messages as $msg): ?>
                             <?php $is_mine = ($msg['sender_id'] == $buyer_id); ?>
-                            <!-- Offer Message -->
-                            <?php if ($msg['is_offer']): ?>
-                                <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?>" style="border: 2px solid <?php echo $is_mine ? '#f1c40f' : '#2ecc71'; ?>;">
-                                    <strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM <?php echo number_format($msg['offer_amount'], 2); ?></strong><br>
-                                    <?php echo htmlspecialchars($msg['message']); ?>
-                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?></span>
+                            <?php $seen = ($is_mine && !empty($msg['is_read'])) ? ' &middot; <span class="msg-read-inline">✓ Seen</span>' : ''; ?>
+                            <?php if (!empty($msg['is_system'])): ?>
+                                <div class="message-system"><?php echo htmlspecialchars($msg['message']); ?></div>
+                            <?php elseif ($msg['is_offer']): ?>
+                                <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?> offer-bubble">
+                                    <span class="offer-amount-display"><i class="fas fa-tag"></i> RM <?php echo number_format($msg['offer_amount'], 2); ?></span>
+                                    <?php $om = $msg['message']; if ($om && $om !== 'Sent an offer.' && $om !== 'Counter-offer sent.'): ?><span style="opacity:0.9;font-size:0.9rem;display:block;"><?php echo htmlspecialchars($om); ?></span><?php endif; ?>
+                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?><?php echo $seen; ?></span>
                                 </div>
                             <?php else: ?>
                                 <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?>">
                                     <?php echo htmlspecialchars($msg['message']); ?>
-                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?></span>
+                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?><?php echo $seen; ?></span>
                                 </div>
                             <?php endif; ?>
                         <?php endforeach; ?>
@@ -315,16 +327,22 @@ if ($active_inquiry_id > 0) {
                         var cls  = mine ? 'sent' : 'received';
                         var d    = new Date(msg.created_at.replace(' ', 'T'));
                         var time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                        var seen = (mine && parseInt(msg.is_read)) ? ' · <span class="msg-read-inline">✓ Seen</span>' : '';
+                        if (parseInt(msg.is_system)) {
+                            return '<div class="message-system">' + escHtml(msg.message) + '</div>';
+                        }
                         if (parseInt(msg.is_offer)) {
-                            var bc = mine ? '#f1c40f' : '#2ecc71';
-                            return '<div class="message ' + cls + '" style="border:2px solid ' + bc + ';">' +
-                                   '<strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM ' +
-                                   parseFloat(msg.offer_amount).toFixed(2) + '</strong><br>' +
-                                   escHtml(msg.message) +
-                                   '<span class="msg-time">' + time + '</span></div>';
+                            var om = msg.message;
+                            var omHtml = (om && om !== 'Sent an offer.' && om !== 'Counter-offer sent.')
+                                ? '<span style="opacity:0.9;font-size:0.9rem;display:block;">' + escHtml(om) + '</span>' : '';
+                            return '<div class="message ' + cls + ' offer-bubble">' +
+                                   '<span class="offer-amount-display"><i class="fas fa-tag"></i> RM ' +
+                                   parseFloat(msg.offer_amount).toFixed(2) + '</span>' +
+                                   omHtml +
+                                   '<span class="msg-time">' + time + seen + '</span></div>';
                         }
                         return '<div class="message ' + cls + '">' + escHtml(msg.message) +
-                               '<span class="msg-time">' + time + '</span></div>';
+                               '<span class="msg-time">' + time + seen + '</span></div>';
                     }
 
                     function pollMessages() {
