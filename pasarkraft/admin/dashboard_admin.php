@@ -67,13 +67,16 @@ if ($has_approval_status) {
 }
 
 // Fetch Recent Registrations
-$recent_select = $has_approval_status ? "a.approval_status" : "NULL AS approval_status";
+$has_status_col  = column_exists($conn, "users", "status");
+$recent_select   = $has_approval_status ? "a.approval_status" : "NULL AS approval_status";
+$status_select   = $has_status_col ? "COALESCE(u.status,'active') AS status" : "'active' AS status";
+
 $recent_res = $conn->query("
-    SELECT u.id, u.firstname, u.lastname, u.username, u.role, NULL AS status, u.created_at, a.shopname, $recent_select 
-    FROM users u 
-    LEFT JOIN artisans a ON u.id = a.user_id 
-    WHERE u.role != 'admin' 
-    ORDER BY u.created_at DESC 
+    SELECT u.id, u.firstname, u.lastname, u.username, u.role, $status_select, u.created_at, a.shopname, $recent_select
+    FROM users u
+    LEFT JOIN artisans a ON u.id = a.user_id
+    WHERE u.role != 'admin'
+    ORDER BY u.created_at DESC
     LIMIT 5
 ");
 $recent_users = [];
@@ -81,25 +84,50 @@ while ($recent_res && ($row = $recent_res->fetch_assoc())) {
     $recent_users[] = $row;
 }
 
-// Generate Chart Data (7 days simulated logic scaled to current totals to look realistic)
+// Real trend data for KPI cards (last 7 days / today)
+$trends_res = $conn->query("
+    SELECT
+        (SELECT COUNT(*) FROM users WHERE role='seller' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS new_sellers_week,
+        (SELECT COUNT(*) FROM users WHERE role='buyer'  AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS new_buyers_week,
+        (SELECT COUNT(*) FROM products WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY))                AS new_listings_today
+");
+$trends = $trends_res ? $trends_res->fetch_assoc()
+        : ['new_sellers_week' => 0, 'new_buyers_week' => 0, 'new_listings_today' => 0];
+
+// Chart: real daily registrations for the last 7 days
+$chart_days = [];
+for ($i = 6; $i >= 0; $i--) {
+    $d = date('Y-m-d', strtotime("-$i days"));
+    $chart_days[$d] = ['buyers' => 0, 'sellers' => 0, 'label' => date('D', strtotime($d))];
+}
+$chart_reg = $conn->query("
+    SELECT DATE(created_at) AS d, role, COUNT(*) AS cnt
+    FROM users
+    WHERE role IN ('buyer','seller') AND created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
+    GROUP BY DATE(created_at), role
+");
+if ($chart_reg) {
+    while ($cr = $chart_reg->fetch_assoc()) {
+        if (isset($chart_days[$cr['d']])) {
+            $chart_days[$cr['d']][$cr['role'] === 'buyer' ? 'buyers' : 'sellers'] = (int)$cr['cnt'];
+        }
+    }
+}
+$max_total = max(array_map(fn($d) => $d['buyers'] + $d['sellers'], $chart_days));
+$max_total = max($max_total, 1);
+
 $chartHtml = "";
-$days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-$today = date("N") - 1; // 0 for Mon, 6 for Sun
-for ($i=0; $i<7; $i++) {
-    // some pseudo-random curve that peaks on weekend
-    $b_h = rand(40, 80);
-    $s_h = rand(10, 30);
-    $tot = $b_h + $s_h;
-    if ($tot > 100) { $b_h = 70; $s_h = 20; }
-    $b_p = round(($b_h / ($b_h + $s_h)) * 100);
-    $s_p = 100 - $b_p;
-    
+foreach ($chart_days as $day) {
+    $total      = $day['buyers'] + $day['sellers'];
+    $height_pct = $total > 0 ? max(8, (int)round(($total / $max_total) * 88)) : 5;
+    $b_pct      = $total > 0 ? (int)round(($day['buyers'] / $total) * 100) : 70;
+    $s_pct      = 100 - $b_pct;
     $chartHtml .= '<div class="chart-point-group">
-        <div class="bar-stack" style="height: '.($b_h+$s_h).'%;">
-            <div class="bar-segment buyers" style="height: '.$b_p.'%;"></div>
-            <div class="bar-segment sellers" style="height: '.$s_p.'%;"></div>
+        <div class="bar-stack" style="height: ' . $height_pct . '%;">
+            <div class="bar-segment buyers" style="height: ' . $b_pct . '%;"></div>
+            <div class="bar-segment sellers" style="height: ' . $s_pct . '%;"></div>
         </div>
-        <span class="x-label">'.$days[$i].'</span>
+        <span class="x-label">' . htmlspecialchars($day['label']) . '</span>
     </div>';
 }
 
@@ -435,7 +463,7 @@ for ($i=0; $i<7; $i++) {
         <div class="hero-content">
             <h1>Melestari Warisan,<br>Mengukir Keunikan</h1>
             <p>Authentic Malaysian Batik & Handcrafted Wood Artistry.</p>
-            <a href="admin_manageUser.php" class="btn">Explore Collection</a>
+            <a href="#analytics" class="btn">See Analytics</a>
         </div>
     </section>
 
@@ -450,33 +478,49 @@ for ($i=0; $i<7; $i++) {
         </div>
 
         <!-- KPI Cards -->
-        <div class="admin-kpi-grid">
+        <div class="admin-kpi-grid" id="analytics">
             <!-- Sellers -->
             <div class="admin-kpi-card" style="color: #d35400;">
                 <span class="kpi-label">Registered Sellers</span>
-                <span class="kpi-value"><?php echo number_format($kpi["total_sellers"]); ?></span>
-                <span class="kpi-trend trend-up"><i class="fas fa-arrow-up"></i> 12 this week</span>
+                <span class="kpi-value"><?php echo number_format($kpi['total_sellers']); ?></span>
+                <?php if ((int)$trends['new_sellers_week'] > 0): ?>
+                    <span class="kpi-trend trend-up"><i class="fas fa-arrow-up"></i> <?php echo $trends['new_sellers_week']; ?> new this week</span>
+                <?php else: ?>
+                    <span class="kpi-trend" style="color:#95a5a6;">No new this week</span>
+                <?php endif; ?>
             </div>
 
             <!-- Buyers -->
             <div class="admin-kpi-card" style="color: #2980b9;">
-                <span class="kpi-label">Verified Buyers</span>
-                <span class="kpi-value"><?php echo number_format($kpi["total_buyers"]); ?></span>
-                <span class="kpi-trend trend-up"><i class="fas fa-arrow-up"></i> 5.2% growth</span>
+                <span class="kpi-label">Registered Buyers</span>
+                <span class="kpi-value"><?php echo number_format($kpi['total_buyers']); ?></span>
+                <?php if ((int)$trends['new_buyers_week'] > 0): ?>
+                    <span class="kpi-trend trend-up"><i class="fas fa-arrow-up"></i> <?php echo $trends['new_buyers_week']; ?> new this week</span>
+                <?php else: ?>
+                    <span class="kpi-trend" style="color:#95a5a6;">No new this week</span>
+                <?php endif; ?>
             </div>
 
             <!-- Products -->
             <div class="admin-kpi-card" style="color: #27ae60;">
                 <span class="kpi-label">Active Listings</span>
-                <span class="kpi-value"><?php echo number_format($kpi["active_listings"]); ?></span>
-                <span class="kpi-trend trend-up"><i class="fas fa-arrow-up"></i> 24 new today</span>
+                <span class="kpi-value"><?php echo number_format($kpi['active_listings']); ?></span>
+                <?php if ((int)$trends['new_listings_today'] > 0): ?>
+                    <span class="kpi-trend trend-up"><i class="fas fa-arrow-up"></i> <?php echo $trends['new_listings_today']; ?> new today</span>
+                <?php else: ?>
+                    <span class="kpi-trend" style="color:#95a5a6;">No new today</span>
+                <?php endif; ?>
             </div>
 
             <!-- Pending Actions -->
             <div class="admin-kpi-card" style="color: #e67e22;">
                 <span class="kpi-label">Pending Verifications</span>
-                <span class="kpi-value"><?php echo number_format($kpi["pending_verifications"]); ?></span>
-                <span class="kpi-trend" style="color:#e67e22; font-weight:500;">Needs Review</span>
+                <span class="kpi-value"><?php echo number_format($kpi['pending_verifications']); ?></span>
+                <?php if ((int)$kpi['pending_verifications'] > 0): ?>
+                    <span class="kpi-trend trend-down"><i class="fas fa-exclamation-circle"></i> Needs Review</span>
+                <?php else: ?>
+                    <span class="kpi-trend" style="color:#27ae60; font-weight:500;"><i class="fas fa-check-circle"></i> All Clear</span>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -564,39 +608,54 @@ for ($i=0; $i<7; $i++) {
                     </tr>
                 </thead>
                 <tbody>
-<?php foreach($recent_users as $ru): 
-    $initial = strtoupper(substr(trim($ru["role"] == "seller" ? $ru["shopname"] : $ru["firstname"]), 0, 1));
-    $name_display = htmlspecialchars($ru["role"] == "seller" ? $ru["shopname"] : ($ru["firstname"]." ".$ru["lastname"]));
-    $bg = $ru["role"] == "seller" ? "#fff3e0" : "#e0f7fa";
-    $fg = $ru["role"] == "seller" ? "#e65100" : "#006064";
-    $statusColor = $ru["status"] == "active" ? "#27ae60" : ($ru["status"] == "suspended" ? "#e74c3c" : "#f39c12");
-    
-    if ($ru["role"] == "seller" && $ru["approval_status"] == "pending") {
-        $displayStatus = "Pending";
-        $statusColor = "#f39c12";
+<?php foreach ($recent_users as $ru):
+    $initial      = strtoupper(substr(trim($ru['role'] === 'seller' ? ($ru['shopname'] ?? '') : ($ru['firstname'] ?? '')), 0, 1));
+    $name_display = htmlspecialchars($ru['role'] === 'seller' ? ($ru['shopname'] ?? '') : (($ru['firstname'] ?? '') . ' ' . ($ru['lastname'] ?? '')));
+    $bg = $ru['role'] === 'seller' ? '#fff3e0' : '#e0f7fa';
+    $fg = $ru['role'] === 'seller' ? '#e65100' : '#006064';
+
+    // Determine status badge — synced with admin_manageUser.php logic
+    $appr       = $ru['approval_status'] ?? '';
+    $userStatus = $ru['status'] ?? 'active';
+    if ($ru['role'] === 'seller' && $appr === 'pending') {
+        $displayStatus    = 'Pending';
+        $badgeClass       = 'status-pending';
+        $badgeInline      = '';
+    } elseif ($ru['role'] === 'seller' && $appr === 'rejected') {
+        $displayStatus    = 'Rejected';
+        $badgeClass       = '';
+        $badgeInline      = 'background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;';
+    } elseif ($userStatus === 'suspended') {
+        $displayStatus    = 'Suspended';
+        $badgeClass       = 'status-inactive';
+        $badgeInline      = '';
     } else {
-        // Guard against null/empty status to avoid deprecated ucfirst(null)
-        $rawStatus = $ru["status"] ?? '';
-        $displayStatus = $rawStatus !== '' ? ucfirst((string) $rawStatus) : 'Unknown';
+        $displayStatus    = 'Active';
+        $badgeClass       = 'status-active';
+        $badgeInline      = '';
     }
 ?>
 <tr style="border-bottom:1px solid #f1f1f1;">
-    <td style="padding:12px; font-family:monospace; font-size:0.9rem;">#<?php echo $ru["id"]; ?></td>
+    <td style="padding:12px; font-family:monospace; font-size:0.9rem;">#<?php echo $ru['id']; ?></td>
     <td style="padding:12px;">
         <div style="display:flex; align-items:center; gap:10px;">
-            <div style="width:24px; height:24px; background:<?php echo $bg; ?>; color:<?php echo $fg; ?>; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:0.7rem; font-weight:bold;">
+            <div style="width:24px;height:24px;background:<?php echo $bg; ?>;color:<?php echo $fg; ?>;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:bold;">
                 <?php echo $initial; ?>
             </div>
             <?php echo $name_display; ?>
         </div>
     </td>
-    <td style="padding:12px;"><span class="user-role-badge role-<?php echo $ru["role"]; ?>"><?php echo ucfirst($ru["role"]); ?></span></td>
-    <td style="padding:12px; font-size:0.9rem; color:#666;"><?php echo date("d M Y", strtotime($ru["created_at"])); ?></td>
-    <td style="padding:12px;"><span style="color:<?php echo $statusColor; ?>; font-weight:500; font-size:0.85rem;"><?php echo $displayStatus; ?></span></td>
-    <td style="padding:12px;"><button class="btn-action-so" onclick="window.location.href='admin_manageUser.php'">Manage</button></td>
+    <td style="padding:12px;"><span class="user-role-badge role-<?php echo $ru['role']; ?>"><?php echo ucfirst($ru['role']); ?></span></td>
+    <td style="padding:12px; font-size:0.9rem; color:#666;"><?php echo date('d M Y', strtotime($ru['created_at'])); ?></td>
+    <td style="padding:12px;">
+        <span class="status-badge <?php echo $badgeClass; ?>" <?php echo $badgeInline ? 'style="' . $badgeInline . '"' : ''; ?>>
+            <?php echo $displayStatus; ?>
+        </span>
+    </td>
+    <td style="padding:12px;"><button class="btn-action-so" onclick="window.location.href='admin_manageUser.php?id=<?php echo $ru['id']; ?>'">Manage</button></td>
 </tr>
 <?php endforeach; ?>
-<?php if(empty($recent_users)): ?>
+<?php if (empty($recent_users)): ?>
     <tr><td colspan="6" style="padding:12px; text-align:center;">No recent users.</td></tr>
 <?php endif; ?>
 </tbody>
