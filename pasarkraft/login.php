@@ -12,7 +12,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         exit();
     }
 
-    $stmt = $conn->prepare("SELECT id, firstname, lastname, password, role FROM users WHERE email = ? OR username = ?");
+    $stmt = $conn->prepare("SELECT u.id, u.firstname, u.lastname, u.password, u.role,
+        COALESCE(u.status, 'active') AS status,
+        COALESCE(a.approval_status, 'approved') AS approval_status
+        FROM users u
+        LEFT JOIN artisans a ON u.id = a.user_id
+        WHERE u.email = ? OR u.username = ?");
     $stmt->bind_param("ss", $email, $email);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -20,9 +25,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if ($result->num_rows > 0) {
         $user = $result->fetch_assoc();
         if (password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['firstname'] = $user['firstname'];
-            $_SESSION['role'] = $user['role'];
+
+            // Block suspended accounts
+            if ($user['status'] === 'suspended') {
+                $_SESSION['login_error'] = "Your account has been suspended. Please contact admin at admin@pasarkraft.com.";
+                header("Location: " . $_SERVER['HTTP_REFERER']);
+                exit();
+            }
+
+            $_SESSION['user_id']          = $user['id'];
+            $_SESSION['firstname']        = $user['firstname'];
+            $_SESSION['role']             = $user['role'];
+            // Store approval status in session so seller pages can check without extra DB queries
+            $_SESSION['approval_status']  = $user['approval_status'];
 
             if ($user['role'] == 'admin') {
                 header("Location: admin/dashboard_admin.php");

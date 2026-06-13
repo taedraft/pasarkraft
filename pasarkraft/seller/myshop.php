@@ -32,7 +32,17 @@ if ($stmt->execute()) {
 }
 $stmt->close();
 
-// Handle AJAX requests for edit/delete
+// Fetch approval status — refreshed from DB every load so it reflects admin actions immediately
+$approval_status = 'approved'; // safe default (allows product add if column not yet in DB)
+$appr_s = $conn->prepare("SELECT COALESCE(approval_status, 'approved') AS approval_status FROM artisans WHERE user_id = ?");
+$appr_s->bind_param("i", $seller_id);
+$appr_s->execute();
+$appr_r = $appr_s->get_result();
+if ($appr_row = $appr_r->fetch_assoc()) {
+    $approval_status = $appr_row['approval_status'];
+}
+$_SESSION['approval_status'] = $approval_status;
+$appr_s->close();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'edit_product') {
         $product_id = intval($_POST['product_id']);
@@ -84,6 +94,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
 // Handle form submission to add new product
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'add_product') {
+
+    // APPROVAL GATE: block product add if store is not approved
+    if ($approval_status !== 'approved') {
+        $msg = $approval_status === 'pending'
+            ? 'Your store is still on pending approval. Please wait for admin to review your application before adding products.'
+            : 'Your store application was rejected. You cannot add products. Contact admin@pasarkraft.com to appeal.';
+        echo json_encode(['blocked' => true, 'message' => $msg]);
+        // Redirect back with a flash message for non-AJAX submission
+        $_SESSION['shop_error'] = $msg;
+        header("Location: myshop.php");
+        exit();
+    }
     $title = $_POST['title'] ?? '';
     $description = $_POST['description'] ?? '';
     $category = $_POST['category'] ?? '';
@@ -438,7 +460,7 @@ $stmt->close();
                 <h1>My Shop</h1>
                 <p>Manage your products, stock, and status.</p>
             </div>
-            <button class="btn" onclick="openAddModal()"><i class="fas fa-plus"></i> Add New Product</button>
+            <button class="btn" onclick="checkApprovalAndAdd()"><i class="fas fa-plus"></i> Add New Product</button>
         </div>
 
         <!-- Inventory List -->
@@ -450,7 +472,7 @@ $stmt->close();
                     <h3 style="color: #2c3e50; margin-bottom: 0.5rem;">No Products Listed Yet</h3>
                     <p style="color: #7f8c8d; margin-bottom: 1.5rem;">You haven't uploaded any products to your shop. Get
                         started by adding your first item!</p>
-                    <button class="btn" onclick="openAddModal()"><i class="fas fa-plus"></i> Add New Product</button>
+                    <button class="btn" onclick="checkApprovalAndAdd()"><i class="fas fa-plus"></i> Add New Product</button>
                 </div>
             <?php else: ?>
                 <?php foreach ($products as $item): ?>
@@ -840,7 +862,49 @@ $stmt->close();
         function addItem(e) {
             // Function no longer needed, handled by PHP completely
         }
+
+        // PHP approval status passed to JS
+        const sellerApprovalStatus = <?php echo json_encode($approval_status); ?>;
+
+        function checkApprovalAndAdd() {
+            if (sellerApprovalStatus === 'approved') {
+                openAddModal();
+            } else {
+                document.getElementById('approvalBlockedModal').style.display = 'flex';
+            }
+        }
+        function closeApprovalBlockedModal() {
+            document.getElementById('approvalBlockedModal').style.display = 'none';
+        }
     </script>
+
+    <!-- Approval Blocked Popup Modal -->
+    <div id="approvalBlockedModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:16px; padding:2.5rem 2rem; max-width:420px; width:90%; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.2); animation: fadeInUp 0.3s ease;">
+            <?php if ($approval_status === 'pending'): ?>
+                <div style="width:64px; height:64px; background:#fff7ed; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1.2rem;">
+                    <i class="fas fa-clock" style="font-size:1.8rem; color:#f59e0b;"></i>
+                </div>
+                <h3 style="color:#1e293b; margin-bottom:0.6rem; font-size:1.2rem;">Pending Approval</h3>
+                <p style="color:#64748b; font-size:0.92rem; line-height:1.6; margin-bottom:1.5rem;">
+                    Your store is still <strong>pending approval</strong> by our admin team.<br>
+                    You will be able to add products once your store is approved.
+                </p>
+            <?php else: ?>
+                <div style="width:64px; height:64px; background:#fef2f2; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1.2rem;">
+                    <i class="fas fa-ban" style="font-size:1.8rem; color:#ef4444;"></i>
+                </div>
+                <h3 style="color:#1e293b; margin-bottom:0.6rem; font-size:1.2rem;">Store Application Rejected</h3>
+                <p style="color:#64748b; font-size:0.92rem; line-height:1.6; margin-bottom:1.5rem;">
+                    Your store application was <strong>not approved</strong>. You cannot add products.<br>
+                    Contact <a href="mailto:admin@pasarkraft.com" style="color:#dc2626; font-weight:600;">admin@pasarkraft.com</a> to appeal.
+                </p>
+            <?php endif; ?>
+            <button onclick="closeApprovalBlockedModal()" style="background:#1e293b; color:white; border:none; padding:10px 28px; border-radius:8px; font-size:0.95rem; cursor:pointer; font-weight:500;">
+                OK, I understand
+            </button>
+        </div>
+    </div>
 </body>
 
 </html>

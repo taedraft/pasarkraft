@@ -482,6 +482,8 @@ if ($result) {
         <td>
             <?php if ($is_pending): ?>
                 <span class="status-badge status-pending">Pending</span>
+            <?php elseif ($u["approval_status"] === "rejected"): ?>
+                <span class="status-badge" style="background:#fef2f2; color:#dc2626; border:1px solid #fca5a5;">Rejected</span>
             <?php elseif ($u["status"] === "suspended"): ?>
                 <span class="status-badge status-inactive">Suspended</span>
             <?php else: ?>

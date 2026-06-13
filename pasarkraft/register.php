@@ -87,7 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $art_stmt->execute();
             $art_stmt->close();
 
-            $_SESSION['register_success'] = "Registration successful!";
+            $_SESSION['register_success'] = "Registration successful! Your store application is now under review. Admin will approve your account before you can start selling.";
         } else {
             $_SESSION['register_success'] = "Registration successful!";
         }

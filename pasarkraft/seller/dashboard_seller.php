@@ -35,7 +35,17 @@ if ($result->num_rows > 0) {
 }
 $stmt->close();
 
-// KPI aggregations
+// Fetch and refresh seller approval status (keeps session current after admin acts)
+$appr_stmt = $conn->prepare("SELECT COALESCE(approval_status, 'approved') AS approval_status FROM artisans WHERE user_id = ?");
+$appr_stmt->bind_param("i", $seller_id);
+$appr_stmt->execute();
+$appr_res = $appr_stmt->get_result();
+$approval_status = 'approved'; // default safe value
+if ($appr_row = $appr_res->fetch_assoc()) {
+    $approval_status = $appr_row['approval_status'];
+}
+$_SESSION['approval_status'] = $approval_status; // keep session up to date
+$appr_stmt->close();
 $total_inquiries_count = 0;
 $active_inquiries_count = 0;
 $products_listed_count = 0;
@@ -454,12 +464,37 @@ $stmt_inq->close();
     <section id="home" class="hero">
         <div class="hero-content">
             <h1>Melestari Warisan,<br>Mengukir Keunikan</h1>
-            <p>Authentic Malaysian Batik & Handcrafted Wood Artistry.</p>
-            <a href="myshop.php" class="btn">Add Products</a>
+            <p>Authentic Malaysian Batik &amp; Handcrafted Wood Artistry.</p>
+            <?php if ($approval_status === 'approved'): ?>
+                <a href="myshop.php" class="btn">Add Products</a>
+            <?php elseif ($approval_status === 'pending'): ?>
+                <a href="#approval-notice" class="btn" style="background:#f59e0b;">⏳ Pending Approval</a>
+            <?php else: ?>
+                <a href="#approval-notice" class="btn" style="background:#ef4444;">🔒 Store Rejected</a>
+            <?php endif; ?>
         </div>
     </section>
 
     <div class="dashboard-container">
+
+        <!-- Approval Status Banner -->
+        <?php if ($approval_status === 'pending'): ?>
+        <div id="approval-notice" style="background:#fffbeb; border:1.5px solid #f59e0b; border-radius:12px; padding:1.2rem 1.5rem; margin-bottom:1.5rem; display:flex; align-items:flex-start; gap:1rem;">
+            <i class="fas fa-clock" style="color:#f59e0b; font-size:1.4rem; margin-top:2px;"></i>
+            <div>
+                <strong style="color:#92400e; font-size:1rem;">Your store is pending approval</strong>
+                <p style="margin:4px 0 0; color:#78350f; font-size:0.88rem;">Our admin team is reviewing your store application. You can browse your dashboard, but you cannot add new products until your store is approved. We will review as soon as possible.</p>
+            </div>
+        </div>
+        <?php elseif ($approval_status === 'rejected'): ?>
+        <div id="approval-notice" style="background:#fef2f2; border:1.5px solid #ef4444; border-radius:12px; padding:1.2rem 1.5rem; margin-bottom:1.5rem; display:flex; align-items:flex-start; gap:1rem;">
+            <i class="fas fa-ban" style="color:#ef4444; font-size:1.4rem; margin-top:2px;"></i>
+            <div>
+                <strong style="color:#991b1b; font-size:1rem;">Your store application was rejected</strong>
+                <p style="margin:4px 0 0; color:#7f1d1d; font-size:0.88rem;">Unfortunately your store application was not approved. You cannot add products. If you believe this is a mistake, please contact admin at <a href="mailto:admin@pasarkraft.com" style="color:#dc2626; font-weight:600;">admin@pasarkraft.com</a> to appeal.</p>
+            </div>
+        </div>
+        <?php endif; ?>
 
         <div class="dashboard-header">
             <h1>Overview</h1>
