@@ -30,6 +30,8 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
 }
 
 
+$is_buyer = isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer';
+
 // Fetch Batik products — approved sellers, in-stock only
 $sort = $_GET['sort'] ?? 'featured';
 $order_sql = "ORDER BY p.created_at DESC";
@@ -309,8 +311,8 @@ if ($result && $result->num_rows > 0) {
                                 </div>
                                 <h3 class="product-title"><?php echo htmlspecialchars($item['title']); ?></h3>
                                 <span class="product-price">RM <?php echo number_format($item['price'], 2); ?></span>
-                                <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>&product_id=<?php echo $item['id']; ?>"
-                                    class="btn-chat" data-product-id="<?php echo $item['id']; ?>">Chat with Seller</a>
+                                <a href="<?php echo $is_buyer ? 'buyer/chat_history.php?chat_with='.urlencode($item['seller_id']).'&product_id='.$item['id'] : 'buyer/login_buyer.php?from=chat'; ?>"
+                                    class="btn-chat" data-product-id="<?php echo $item['id']; ?>"><i class="fas fa-comment-dots"></i> Chat with Seller</a>
                             </div>
                         </article>
                     <?php endforeach; ?>

@@ -30,6 +30,8 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
     $w_stmt->close();
 }
 
+$is_buyer = isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer';
+
 $filter_query = trim($_GET['q'] ?? '');
 $filter_category = trim($_GET['category'] ?? '');
 $filter_material = trim($_GET['material'] ?? '');
@@ -402,7 +404,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                             </div>
                             <h3 class="product-title"><?php echo htmlspecialchars($prod['title']); ?></h3>
                             <span class="product-price">RM <?php echo number_format($prod['price'], 2); ?></span>
-                            <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($prod['seller_id']); ?>&product_id=<?php echo $prod['id']; ?>"
+                            <a href="<?php echo $is_buyer ? 'buyer/chat_history.php?chat_with='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=chat'; ?>"
                                 class="btn-chat" data-product-id="<?php echo $prod['id']; ?>">
                                 <i class="fas fa-comment-dots"></i> Chat with Seller
                             </a>
@@ -458,7 +460,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                             </div>
                             <h3 class="product-title"><?php echo htmlspecialchars($prod['title']); ?></h3>
                             <span class="product-price">RM <?php echo number_format($prod['price'], 2); ?></span>
-                            <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($prod['seller_id']); ?>&product_id=<?php echo $prod['id']; ?>"
+                            <a href="<?php echo $is_buyer ? 'buyer/chat_history.php?chat_with='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=chat'; ?>"
                                 class="btn-chat" data-product-id="<?php echo $prod['id']; ?>">
                                 <i class="fas fa-comment-dots"></i> Chat with Seller
                             </a>
