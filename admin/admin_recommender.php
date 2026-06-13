@@ -94,16 +94,19 @@ if (isset($_SESSION['training_metrics'])) {
     $metrics = $_SESSION['training_metrics'];
 }
 
-// Trigger initial training to populate SVD/TFIDF maps for display
-// NOTE: training SVD can be slow on shared hosts; only run when explicitly requested.
-$recommender->trainTfidf();
-// Do NOT call trainSvd() automatically on page load to avoid timeouts; keep SVD training behind the "Train AI Pipeline" action.
-
-$vocab = $recommender->getVocabulary();
-$tfidf = $recommender->getTfidfVectors();
+// PERF FIX: trainTfidf() has been removed from page load.
+// It ran expensive O(V×D) IDF computation + O(N²) cosine similarity on every request,
+// causing "Page Unresponsive". TF-IDF data is now loaded lazily via AJAX
+// (get_cosine_matrix.php) only when the user clicks the TF-IDF tab.
 $svd = $recommender->getSVDMatrices();
 $userMap = $recommender->getUserMap();
 $productMap = $recommender->getProductMap();
+
+// Lightweight KPI data — direct DB queries only, no heavy in-memory computation
+$productCountRes = $conn->query("SELECT COUNT(*) as cnt FROM products");
+$productCount = intval($productCountRes->fetch_assoc()['cnt']);
+// Vocabulary size is persisted in session after each "Train AI Pipeline" run
+$cachedVocabSize = isset($_SESSION['training_metrics']['vocabulary_size']) ? intval($_SESSION['training_metrics']['vocabulary_size']) : null;
 
 // Fetch Users for interaction matrix
 $usersRes = $conn->query("SELECT id, firstname, lastname, username FROM users WHERE role = 'buyer'");
@@ -244,7 +247,10 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
             <div class="kpi-card">
                 <div class="kpi-info">
                     <h4>Total Vocabulary Size</h4>
-                    <span><?php echo count($vocab); ?></span>
+                    <span><?php echo $cachedVocabSize !== null ? $cachedVocabSize : '—'; ?></span>
+                    <?php if ($cachedVocabSize === null): ?>
+                        <small style="color:#94a3b8;font-size:0.7rem;">Train pipeline to compute</small>
+                    <?php endif; ?>
                 </div>
                 <div class="kpi-icon bg-blue"><i class="fas fa-spell-check"></i></div>
             </div>
@@ -252,7 +258,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
             <div class="kpi-card">
                 <div class="kpi-info">
                     <h4>Active Products Indexed</h4>
-                    <span><?php echo count($tfidf); ?></span>
+                    <span><?php echo $productCount; ?></span>
                 </div>
                 <div class="kpi-icon bg-orange"><i class="fas fa-box-open"></i></div>
             </div>
@@ -385,7 +391,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                             <thead>
                                 <tr>
                                     <th>User</th>
-                                    <?php for($f=0;$f<$recommender->getSVDMatrices()['globalMean']?4:4;$f++): ?>
+                                    <?php for($f=0;$f<4;$f++): ?>
                                         <th>Factor <?php echo $f+1; ?></th>
                                     <?php endfor; ?>
                                 </tr>
@@ -451,66 +457,44 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
         </div>
 
         <!-- Tab 2: TF-IDF Content-Based Filtering -->
+        <!-- PERF FIX: Content is loaded lazily via AJAX on first tab click (get_cosine_matrix.php). -->
+        <!-- Previously this tab rendered O(N²) cosine similarity computations server-side on page load. -->
         <div id="tfidf-tab" class="tab-content animate-fade-in">
-            
-            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
-                
-                <!-- Vocabulary list -->
-                <div class="card-panel" style="max-height: 550px; overflow-y: auto;">
-                    <h3><i class="fas fa-book" style="color: #10b981;"></i> TF-IDF Vocabulary</h3>
-                    <p style="color: #64748b; font-size: 0.85rem; margin-top: -10px; margin-bottom: 1rem;">
-                        Unique keywords extracted and vectorized across all product descriptions and metadata tags.
-                    </p>
-                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
-                        <?php if (empty($vocab)): ?>
-                            <span style="color:#94a3b8;">No vocabulary built. Train model first.</span>
-                        <?php else: ?>
-                            <?php foreach ($vocab as $term): ?>
-                                <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 4px; font-size: 0.8rem; font-family: monospace; border: 1px solid #e2e8f0;">
-                                    <?php echo htmlspecialchars($term); ?>
-                                </span>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+
+            <!-- Loading state shown while AJAX request is in flight -->
+            <div id="tfidf-loader" style="display:none; text-align:center; padding: 4rem 2rem; color: #64748b;">
+                <i class="fas fa-spinner fa-spin" style="font-size: 2.5rem; color: #2563eb; display:block; margin-bottom: 1rem;"></i>
+                <p style="font-weight:600; font-size:1rem; margin:0 0 8px;">Computing TF-IDF &amp; Cosine Similarity Matrix...</p>
+                <p style="font-size:0.85rem; color:#94a3b8; margin:0;">Computed on-demand to keep the page fast. This may take a few seconds.</p>
+            </div>
+
+            <!-- Error state -->
+            <div id="tfidf-error" style="display:none; text-align:center; padding: 3rem 2rem; color: #ef4444;">
+                <i class="fas fa-exclamation-triangle" style="font-size: 2rem; display:block; margin-bottom: 1rem;"></i>
+                <p id="tfidf-error-msg" style="font-weight:600;">Failed to load TF-IDF data.</p>
+            </div>
+
+            <!-- Actual content, rendered by JS after AJAX response -->
+            <div id="tfidf-content" style="display:none;">
+                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
+
+                    <!-- Vocabulary list -->
+                    <div class="card-panel" style="max-height: 550px; overflow-y: auto;">
+                        <h3><i class="fas fa-book" style="color: #10b981;"></i> TF-IDF Vocabulary</h3>
+                        <p style="color: #64748b; font-size: 0.85rem; margin-top: -10px; margin-bottom: 1rem;">
+                            Unique keywords extracted and vectorized across all product descriptions and metadata tags.
+                        </p>
+                        <div id="vocab-container" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
                     </div>
-                </div>
-                
-                <!-- Cosine Similarity Grid -->
-                <div class="card-panel">
-                    <h3><i class="fas fa-compress-arrows-alt" style="color: #f59e0b;"></i> Product Cosine Similarity Matrix</h3>
-                    <p style="color: #64748b; font-size: 0.85rem; margin-top: -10px; margin-bottom: 1.5rem;">
-                        Calculated cosine similarities between product TF-IDF vectors. Measures content-based overlap.
-                    </p>
-                    <div class="matrix-table-container">
-                        <table class="matrix-table" style="font-size: 0.75rem;">
-                            <thead>
-                                <tr>
-                                    <th>Product</th>
-                                    <?php foreach ($products as $p): ?>
-                                        <th title="<?php echo htmlspecialchars($p['title']); ?>"><?php echo htmlspecialchars(strlen($p['title']) > 10 ? substr($p['title'],0,10).'...' : $p['title']); ?></th>
-                                    <?php endforeach; ?>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($products as $p1): ?>
-                                    <tr>
-                                        <td style="text-align: left; font-weight: 500; font-size:0.8rem;" title="<?php echo htmlspecialchars($p1['title']); ?>"><?php echo htmlspecialchars(strlen($p1['title']) > 15 ? substr($p1['title'],0,15).'...' : $p1['title']); ?></td>
-                                        <?php foreach ($products as $p2): ?>
-                                            <?php 
-                                                $v1 = isset($tfidf[$p1['id']]) ? $tfidf[$p1['id']] : [];
-                                                $v2 = isset($tfidf[$p2['id']]) ? $tfidf[$p2['id']] : [];
-                                                $sim = ($p1['id'] === $p2['id']) ? 1.0 : PasarKraftRecommender::calculateCosineSimilarity($v1, $v2);
-                                                
-                                                if ($sim == 1.0) $bg = '#eff6ff; color:#2563eb; font-weight:bold;';
-                                                elseif ($sim > 0.6) $bg = '#ecfdf5; color:#10b981;';
-                                                elseif ($sim > 0.2) $bg = '#fffbeb; color:#d97706;';
-                                                else $bg = '#ffffff; color:#cbd5e1;';
-                                            ?>
-                                            <td style="<?php echo $bg; ?>"><?php echo number_format($sim, 2); ?></td>
-                                        <?php endforeach; ?>
-                                    </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+
+                    <!-- Cosine Similarity Grid -->
+                    <div class="card-panel">
+                        <h3><i class="fas fa-compress-arrows-alt" style="color: #f59e0b;"></i> Product Cosine Similarity Matrix</h3>
+                        <p style="color: #64748b; font-size: 0.85rem; margin-top: -10px; margin-bottom: 1.5rem;">
+                            Cosine similarities between product TF-IDF vectors.
+                            <span id="matrix-note" style="color:#94a3b8;"></span>
+                        </p>
+                        <div class="matrix-table-container" id="cosine-matrix-container"></div>
                     </div>
                 </div>
             </div>
@@ -632,17 +616,93 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
     </footer>
 
     <script>
+        // Flag: true once TF-IDF data has been fetched from the server
+        let tfidfLoaded = false;
+
         function switchTab(tabId) {
             // Hide all tab contents
             document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
             // Remove active style from tab links
             document.querySelectorAll('.tab-link').forEach(tl => tl.classList.remove('active'));
-            
+
             // Show target
             document.getElementById(tabId).classList.add('active');
             event.currentTarget.classList.add('active');
+
+            // PERF FIX: Lazy-load TF-IDF tab only when first clicked.
+            // Previously this was computed server-side (O(N²)) on every page load.
+            if (tabId === 'tfidf-tab' && !tfidfLoaded) {
+                loadTfidfData();
+            }
         }
-        
+
+        function loadTfidfData() {
+            document.getElementById('tfidf-loader').style.display = 'block';
+            document.getElementById('tfidf-content').style.display = 'none';
+            document.getElementById('tfidf-error').style.display = 'none';
+
+            fetch('get_cosine_matrix.php')
+                .then(r => {
+                    if (!r.ok) throw new Error('Server error ' + r.status);
+                    return r.json();
+                })
+                .then(data => {
+                    tfidfLoaded = true;
+
+                    // --- Render Vocabulary ---
+                    const vocabContainer = document.getElementById('vocab-container');
+                    let vocabHtml = '';
+                    data.vocab.forEach(term => {
+                        const escaped = term.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+                        vocabHtml += `<span style="background:#f1f5f9;color:#475569;padding:4px 10px;border-radius:4px;font-size:0.8rem;font-family:monospace;border:1px solid #e2e8f0;">${escaped}</span>`;
+                    });
+                    if (data.vocab_total > data.vocab.length) {
+                        vocabHtml += `<span style="color:#94a3b8;font-size:0.8rem;padding:4px 0;">...and ${data.vocab_total - data.vocab.length} more terms</span>`;
+                    }
+                    vocabContainer.innerHTML = vocabHtml;
+
+                    // --- Show note if product list was capped ---
+                    if (data.total_products > data.shown_products) {
+                        document.getElementById('matrix-note').textContent =
+                            ` (Showing first ${data.shown_products} of ${data.total_products} products to prevent timeout)`;
+                    }
+
+                    // --- Render Cosine Similarity Table ---
+                    const products = data.products;
+                    let tableHtml = `<table class="matrix-table" style="font-size:0.75rem;"><thead><tr><th>Product</th>`;
+                    products.forEach(p => {
+                        const label = p.title.length > 10 ? p.title.substring(0, 10) + '...' : p.title;
+                        tableHtml += `<th title="${p.title}">${label}</th>`;
+                    });
+                    tableHtml += `</tr></thead><tbody>`;
+
+                    data.matrix.forEach((row, i) => {
+                        const p1 = products[i];
+                        const rowLabel = p1.title.length > 15 ? p1.title.substring(0, 15) + '...' : p1.title;
+                        tableHtml += `<tr><td style="text-align:left;font-weight:500;font-size:0.8rem;" title="${p1.title}">${rowLabel}</td>`;
+                        row.forEach(sim => {
+                            let style;
+                            if (sim >= 0.9999) style = 'background:#eff6ff;color:#2563eb;font-weight:bold;';
+                            else if (sim > 0.6)  style = 'background:#ecfdf5;color:#10b981;';
+                            else if (sim > 0.2)  style = 'background:#fffbeb;color:#d97706;';
+                            else                 style = 'background:#ffffff;color:#cbd5e1;';
+                            tableHtml += `<td style="${style}">${sim.toFixed(2)}</td>`;
+                        });
+                        tableHtml += `</tr>`;
+                    });
+                    tableHtml += `</tbody></table>`;
+
+                    document.getElementById('cosine-matrix-container').innerHTML = tableHtml;
+                    document.getElementById('tfidf-loader').style.display = 'none';
+                    document.getElementById('tfidf-content').style.display = 'block';
+                })
+                .catch(err => {
+                    document.getElementById('tfidf-loader').style.display = 'none';
+                    document.getElementById('tfidf-error').style.display = 'block';
+                    document.getElementById('tfidf-error-msg').textContent = 'Failed to load TF-IDF data: ' + err.message;
+                });
+        }
+
         function runSimulation() {
             const userId = document.getElementById('sim-user').value;
             const productId = document.getElementById('sim-product').value;
@@ -664,7 +724,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
 <p>Predicted SVD Rating = <strong>${parseFloat(data.svd_rating).toFixed(4)} / 5.0</strong></p>
 <p>Normalized SVD Rating (0..1 scale) = (Rating - 1.0) / 4.0 = <strong>${parseFloat(data.svd_normalized).toFixed(4)}</strong></p>
 <br>
-<p>// 2. CONTENT-BASED FILTERING (TF-IDF & COSINE SIMILARITY)</p>
+<p>// 2. CONTENT-BASED FILTERING (TF-IDF &amp; COSINE SIMILARITY)</p>
 <p>User Profile Vector compiled from ${data.user_items_count} historical interactions.</p>
 <p>Cosine Similarity = Dot Product (UserProfile, ProductTFIDF) = <strong>${parseFloat(data.cosine_similarity).toFixed(4)}</strong></p>
 <br>

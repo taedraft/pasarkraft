@@ -441,6 +441,19 @@ class PasarKraftRecommender {
             $alpha = 0.70;
         }
         
+        // PERF FIX: Pre-aggregate all product popularity scores in a SINGLE query.
+        // Previously, cold-start users triggered one SELECT AVG() per product (N+1 pattern),
+        // which could fire 50–100+ individual queries inside the loop below.
+        $popularityMap = [];
+        if (!$hasHistory) {
+            $popRes = $this->conn->query(
+                "SELECT product_id, AVG(interaction_value) as avg_val FROM user_interactions GROUP BY product_id"
+            );
+            while ($popRow = $popRes->fetch_assoc()) {
+                $popularityMap[intval($popRow['product_id'])] = floatval($popRow['avg_val']) / 5.0;
+            }
+        }
+
         $scores = [];
         foreach ($productsList as $pid) {
             if (in_array($pid, $excludeIds)) continue; // Skip owned/wishlisted items
@@ -458,10 +471,8 @@ class PasarKraftRecommender {
             
             // C. Hybrid calculation
             if (!$hasHistory) {
-                // If pure cold start, score is based on product popularity (average interaction score)
-                $popRes = $this->conn->query("SELECT AVG(interaction_value) as avg_val FROM user_interactions WHERE product_id = $pid");
-                $popRow = $popRes->fetch_assoc();
-                $popularity = $popRow['avg_val'] ? floatval($popRow['avg_val']) / 5.0 : 0.2;
+                // Cold start: use pre-fetched popularity map (single query above, not N queries)
+                $popularity = isset($popularityMap[$pid]) ? $popularityMap[$pid] : 0.2;
                 
                 $hybridScore = $popularity;
                 $type = 'popularity';
