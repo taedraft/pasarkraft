@@ -120,7 +120,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $db_path = '';
 
     if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] === UPLOAD_ERR_OK) {
-        $allowed = ['image/jpeg', 'image/png', 'image/gif'];
+        $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         if (in_array($_FILES['product_image']['type'], $allowed)) {
             $upload_dir = '../uploads/';
             if (!is_dir($upload_dir))
@@ -128,7 +128,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $filename = time() . '_' . basename($_FILES['product_image']['name']);
             if (move_uploaded_file($_FILES['product_image']['tmp_name'], $upload_dir . $filename)) {
                 $db_path = 'uploads/' . $filename;
+            } else {
+                $_SESSION['shop_error'] = 'Image upload failed. Please try again.';
             }
+        } else {
+            $_SESSION['shop_error'] = 'Invalid image type. Only JPG, PNG, GIF, WEBP are allowed.';
         }
     }
 
@@ -463,7 +467,19 @@ $stmt->close();
             <button class="btn" onclick="checkApprovalAndAdd()"><i class="fas fa-plus"></i> Add New Product</button>
         </div>
 
-        <!-- Inventory List -->
+        <!-- Flash messages (outside modal so they're visible after redirect) -->
+        <?php if (isset($_SESSION['success_msg'])): ?>
+            <div style="background:#dcfce7; border-left:4px solid #22c55e; color:#166534; padding:12px 16px; margin-bottom:1.5rem; border-radius:6px; display:flex; align-items:center; gap:8px;">
+                <i class="fas fa-check-circle"></i>
+                <span><?php echo htmlspecialchars($_SESSION['success_msg']); unset($_SESSION['success_msg']); ?></span>
+            </div>
+        <?php endif; ?>
+        <?php if (isset($_SESSION['shop_error'])): ?>
+            <div style="background:#fee2e2; border-left:4px solid #ef4444; color:#b91c1c; padding:12px 16px; margin-bottom:1.5rem; border-radius:6px; display:flex; align-items:center; gap:8px;">
+                <i class="fas fa-exclamation-circle"></i>
+                <span><?php echo htmlspecialchars($_SESSION['shop_error']); unset($_SESSION['shop_error']); ?></span>
+            </div>
+        <?php endif; ?>
         <div class="inventory-list" id="inventoryList">
             <?php if (empty($products)): ?>
                 <div
@@ -596,13 +612,7 @@ $stmt->close();
                 <h2>Add New Product</h2>
                 <button class="btn-icon-action" onclick="closeAddModal()"><i class="fas fa-times"></i></button>
             </div>
-            <?php if (isset($_SESSION['success_msg'])): ?>
-                <div
-                    style="background-color: #dcfce7; color: #166534; padding: 12px; margin-bottom: 1rem; border-radius: 4px;">
-                    <?php echo htmlspecialchars($_SESSION['success_msg']);
-                    unset($_SESSION['success_msg']); ?>
-                </div>
-            <?php endif; ?>
+            <?php /* Success/error messages are now shown above the product list, not here */ ?>
 
             <form action="myshop.php" method="POST" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="add_product">
