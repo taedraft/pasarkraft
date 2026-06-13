@@ -30,18 +30,33 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
 }
 
 
-// Fetch Woodcraft products
+// Fetch Woodcraft products — approved sellers, in-stock only
 $sort = $_GET['sort'] ?? 'featured';
 $order_sql = "ORDER BY p.created_at DESC";
 if ($sort === 'price_low') {
-    $order_sql = "ORDER BY price ASC";
+    $order_sql = "ORDER BY p.price ASC";
 } elseif ($sort === 'price_high') {
-    $order_sql = "ORDER BY price DESC";
+    $order_sql = "ORDER BY p.price DESC";
 } elseif ($sort === 'new') {
     $order_sql = "ORDER BY p.created_at DESC";
 }
 
-$sql = "SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname FROM products p LEFT JOIN artisans a ON p.seller_id = a.user_id WHERE category LIKE '%woodcraft%' OR category LIKE '%wood%' OR category LIKE '%furniture%' $order_sql";
+// Check if approval_status column exists (defensive)
+$has_approval_col = false;
+$appr_col_res = $conn->query("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'artisans' AND COLUMN_NAME = 'approval_status'");
+if ($appr_col_res) {
+    $has_approval_col = ($appr_col_res->fetch_assoc()['c'] ?? 0) > 0;
+}
+
+$approval_filter = $has_approval_col ? "AND COALESCE(a.approval_status, 'approved') = 'approved'" : "";
+
+$sql = "SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname
+        FROM products p
+        LEFT JOIN artisans a ON p.seller_id = a.user_id
+        WHERE p.category = 'Woodcraft'
+          AND p.stock > 0
+          $approval_filter
+        $order_sql";
 $result = $conn->query($sql);
 $products = [];
 if ($result && $result->num_rows > 0) {
@@ -246,8 +261,17 @@ if ($result && $result->num_rows > 0) {
                         ?>
                         <article class="product-card" data-product-id="<?php echo $item['id']; ?>">
                             <div class="product-image">
-                                <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'wood_chair.png'); ?>"
-                                    alt="<?php echo htmlspecialchars($item['title']); ?>">
+                                <?php
+                                $img_raw = $item['image_path'] ?? '';
+                                if (empty($img_raw)) {
+                                    $img_src = 'png/wood_art.png';
+                                } elseif (strpos($img_raw, '/') === false) {
+                                    $img_src = 'png/' . htmlspecialchars($img_raw);
+                                } else {
+                                    $img_src = htmlspecialchars($img_raw);
+                                }
+                                ?>
+                                <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($item['title']); ?>">
                             </div>
                             <div class="product-info">
                                 <div class="product-meta">
