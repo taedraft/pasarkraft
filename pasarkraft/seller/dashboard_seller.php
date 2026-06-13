@@ -145,6 +145,24 @@ while ($row = $res_inq->fetch_assoc()) {
     $inquiries[] = $row;
 }
 $stmt_inq->close();
+// Top wishlisted products for this seller (real data)
+$top_wishlist = [];
+$stmt_top_wish = $conn->prepare("
+    SELECT p.id, p.title, p.price, p.image_path, COUNT(w.id) AS wish_count
+    FROM products p
+    JOIN wishlist w ON w.product_id = p.id
+    WHERE p.seller_id = ?
+    GROUP BY p.id, p.title, p.price, p.image_path
+    ORDER BY wish_count DESC
+    LIMIT 3
+");
+$stmt_top_wish->bind_param("i", $seller_id);
+$stmt_top_wish->execute();
+$res_top_wish = $stmt_top_wish->get_result();
+while ($row = $res_top_wish->fetch_assoc()) {
+    $top_wishlist[] = $row;
+}
+$stmt_top_wish->close();
 ?>
 <!DOCTYPE html>
 <html lang="ms">
@@ -603,40 +621,43 @@ $stmt_inq->close();
                 </div>
             </div>
 
-            <!-- Right: Recent Reviews -->
+            <!-- Right: Top Wishlisted Products (real wishlist data) -->
             <div class="activity-card">
-                <h3 style="margin-bottom:1.2rem; color:#2c3e50;">Recent Reviews</h3>
+                <h3 style="margin-bottom:1.2rem; color:#2c3e50; display:flex; align-items:center; gap:8px;">
+                    <i class="fas fa-heart" style="color:#e74c3c; font-size:1rem;"></i> Top Wishlisted
+                </h3>
 
-                <div class="review-item">
-                    <div class="user-avatar" style="background:#3498db;">AM</div>
-                    <div class="review-content">
-                        <h4>Ahmad M.</h4>
-                        <div class="star-rating"><i class="fas fa-star"></i><i class="fas fa-star"></i><i
-                                class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-                        <p>Beautiful woodwork! Exactly as described.</p>
+                <?php if (empty($top_wishlist)): ?>
+                    <div style="text-align:center; padding:2rem 0; color:#94a3b8;">
+                        <i class="fas fa-heart-broken" style="font-size:2.5rem; margin-bottom:0.8rem; display:block; color:#e2e8f0;"></i>
+                        <p style="font-size:0.88rem; line-height:1.6;">No wishlist data yet.<br>When buyers save your products, they'll appear here.</p>
                     </div>
-                </div>
-
-                <div class="review-item">
-                    <div class="user-avatar" style="background:#e74c3c;">SL</div>
-                    <div class="review-content">
-                        <h4>Sarah L.</h4>
-                        <div class="star-rating"><i class="fas fa-star"></i><i class="fas fa-star"></i><i
-                                class="fas fa-star"></i><i class="fas fa-star"></i><i class="far fa-star"></i></div>
-                        <p>Fabric is nice but delivery was slightly delayed.</p>
-                    </div>
-                </div>
-
-                <div class="review-item" style="border:none;">
-                    <div class="user-avatar" style="background:#9b59b6;">D</div>
-                    <div class="review-content">
-                        <h4>David</h4>
-                        <div class="star-rating"><i class="fas fa-star"></i><i class="fas fa-star"></i><i
-                                class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
-                        <p>The batik shirt fits perfectly. Will buy again!</p>
-                    </div>
-                </div>
-
+                <?php else: ?>
+                    <?php foreach ($top_wishlist as $i => $wp): ?>
+                        <div class="review-item" style="<?php echo ($i === count($top_wishlist) - 1) ? 'border:none; margin-bottom:0; padding-bottom:0;' : ''; ?>">
+                            <!-- Product thumbnail or icon -->
+                            <div style="width:44px; height:44px; border-radius:10px; overflow:hidden; flex-shrink:0; background:#f1f5f9; display:flex; align-items:center; justify-content:center;">
+                                <?php if (!empty($wp['image_path'])): ?>
+                                    <img src="../<?php echo htmlspecialchars($wp['image_path']); ?>" alt="" style="width:44px; height:44px; object-fit:cover;">
+                                <?php else: ?>
+                                    <i class="fas fa-box" style="color:#94a3b8; font-size:1.1rem;"></i>
+                                <?php endif; ?>
+                            </div>
+                            <div class="review-content" style="flex:1; min-width:0;">
+                                <h4 style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:0.9rem;">
+                                    <?php echo htmlspecialchars(mb_strlen($wp['title']) > 22 ? mb_substr($wp['title'], 0, 22) . '...' : $wp['title']); ?>
+                                </h4>
+                                <p style="font-size:0.82rem; color:#64748b; margin:2px 0;">RM <?php echo number_format((float)$wp['price'], 2); ?></p>
+                                <div style="display:flex; align-items:center; gap:4px; margin-top:4px;">
+                                    <i class="fas fa-heart" style="color:#e74c3c; font-size:0.72rem;"></i>
+                                    <span style="font-size:0.82rem; color:#e74c3c; font-weight:600;">
+                                        <?php echo $wp['wish_count']; ?> <?php echo (int)$wp['wish_count'] === 1 ? 'save' : 'saves'; ?>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         </div>
 
