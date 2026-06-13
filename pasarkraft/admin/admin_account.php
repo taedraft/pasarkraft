@@ -190,10 +190,10 @@ if ($hasApprovalCol) {
             <div class="nav-links">
                 <a href="dashboard_admin.php">Dashboard</a>
                 <a href="admin_manageUser.php">Users Management<?php if(isset($admin_notif_count) && $admin_notif_count > 0): ?> <span style="background:#e74c3c; color:white; border-radius:10px; padding:2px 7px; font-size:0.75rem; margin-left:3px; font-weight:bold; box-shadow:0 2px 4px rgba(231,76,60,0.3);"><?php echo $admin_notif_count; ?></span><?php endif; ?></a>
+                <a href="admin_recommender.php">AI Recommender</a>
                 <a href="admin_account.php" class="active-link">Account</a>
                 <a href="../logout.php" class="nav-login" style="color:#e74c3c;">Logout</a>
-                <div class="profile-icon"
-                    style="background:#fceeee; color:#c0392b; width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:50%;">
+                <div class="profile-icon" style="background:#fceeee; color:#c0392b; width:35px; height:35px; display:flex; align-items:center; justify-content:center; border-radius:50%;">
                     <i class="fas fa-shield-alt"></i>
                 </div>
             </div>
