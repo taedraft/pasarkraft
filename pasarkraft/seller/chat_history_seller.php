@@ -41,23 +41,34 @@ $stmt->close();
 // Handle form submissions for messages and offers
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
     if (isset($_POST['message'])) {
-        $msg = trim($_POST['message']);
-        if (!empty($msg)) {
-            // Find buyer_id for this inquiry
-            $b_stmt = $conn->prepare("SELECT buyer_id FROM inquiries WHERE id = ? AND seller_id = ?");
+        $msg          = trim($_POST['message']);
+        $offer_amount = isset($_POST['offer_amount']) ? floatval($_POST['offer_amount']) : 0;
+        $is_offer     = ($offer_amount > 0) ? 1 : 0;
+
+        if (!empty($msg) || $is_offer) {
+            // Find buyer_id and current status for this inquiry
+            $b_stmt = $conn->prepare("SELECT buyer_id, status FROM inquiries WHERE id = ? AND seller_id = ?");
             $b_stmt->bind_param("ii", $active_inquiry_id, $seller_id);
             $b_stmt->execute();
             $b_res = $b_stmt->get_result();
             if ($b_row = $b_res->fetch_assoc()) {
-                $buyer_id = $b_row['buyer_id'];
-                $i_stmt = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message) VALUES (?, ?, ?, ?)");
-                $i_stmt->bind_param("iiis", $active_inquiry_id, $seller_id, $buyer_id, $msg);
-                $i_stmt->execute();
+                if ($b_row['status'] !== 'Sold' && $b_row['status'] !== 'No Deal') {
+                    $buyer_id  = $b_row['buyer_id'];
+                    $msg_text  = $msg ?: 'Counter-offer sent.';
+                    $i_stmt = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message, is_offer, offer_amount) VALUES (?, ?, ?, ?, ?, ?)");
+                    $i_stmt->bind_param("iiisid", $active_inquiry_id, $seller_id, $buyer_id, $msg_text, $is_offer, $offer_amount);
+                    $i_stmt->execute();
 
-                // Update inquiry updated_at
-                $u_stmt = $conn->prepare("UPDATE inquiries SET updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-                $u_stmt->bind_param("i", $active_inquiry_id);
-                $u_stmt->execute();
+                    if ($is_offer) {
+                        $u_stmt = $conn->prepare("UPDATE inquiries SET current_offer = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                        $u_stmt->bind_param("di", $offer_amount, $active_inquiry_id);
+                        $u_stmt->execute();
+                    } else {
+                        $u_stmt = $conn->prepare("UPDATE inquiries SET updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                        $u_stmt->bind_param("i", $active_inquiry_id);
+                        $u_stmt->execute();
+                    }
+                }
             }
         }
     }
@@ -350,6 +361,21 @@ if ($active_inquiry_id > 0) {
         .chat-form {
             display: flex;
             gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .offer-input {
+            width: 110px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        .offer-input:focus {
+            border-color: #27ae60;
         }
 
         .chat-input {
@@ -494,8 +520,7 @@ if ($active_inquiry_id > 0) {
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Products</a>
                 <a href="chat_history_seller.php" <?php if (basename($_SERVER['PHP_SELF']) == 'chat_history_seller.php')
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Customer Chats
-                    <?php if (isset($unread_count) && $unread_count > 0)
-                        echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?></a>
+                    <span id="pkUnreadBadge" style="background:red;color:white;border-radius:50%;padding:2px 6px;font-size:0.75rem;margin-left:5px;<?php echo ($unread_count > 0) ? '' : 'display:none;'; ?>"><?php echo $unread_count; ?></span></a>
                 <div class="profile-dropdown-container">
                     <div class="profile-icon"><i class="far fa-user-circle"></i></div>
                     <div class="profile-dropdown-menu">
@@ -588,7 +613,7 @@ if ($active_inquiry_id > 0) {
 
                 <div class="chat-messages" id="chatMessages">
                     <?php if (empty($messages)): ?>
-                        <div style="text-align:center; color:#999; margin:auto;">Send a message to start the thread.</div>
+                        <div data-placeholder="1" style="text-align:center; color:#999; margin:auto;">Send a message to start the thread.</div>
                     <?php else: ?>
                         <?php foreach ($messages as $msg): ?>
                             <?php $is_mine = ($msg['sender_id'] == $seller_id); ?>
@@ -622,9 +647,11 @@ if ($active_inquiry_id > 0) {
                 </div>
 
                 <div class="chat-input-area">
-                    <form class="chat-form" method="POST">
-                        <input type="text" name="message" class="chat-input" placeholder="Type a message..." required
+                    <form class="chat-form" method="POST" onsubmit="return validateSellerChatForm(this)">
+                        <input type="text" name="message" class="chat-input" placeholder="Type a message..."
                             autocomplete="off" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
+                        <input type="number" step="0.01" min="0.01" name="offer_amount" class="offer-input" placeholder="Counter RM"
+                            <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
                         <button type="submit" class="btn-send" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>><i
                                 class="fas fa-paper-plane"></i></button>
                     </form>
@@ -640,6 +667,73 @@ if ($active_inquiry_id > 0) {
 
                     var cm = document.getElementById('chatMessages');
                     if (cm) cm.scrollTop = cm.scrollHeight;
+
+                    // Require message OR counter-offer before submitting
+                    function validateSellerChatForm(f) {
+                        var msg   = f.querySelector('[name="message"]').value.trim();
+                        var offer = parseFloat(f.querySelector('[name="offer_amount"]').value || 0);
+                        if (!msg && !(offer > 0)) {
+                            alert('Please type a message or enter a counter-offer amount.');
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    <?php if (!($active_inquiry['status'] === 'Sold' || $active_inquiry['status'] === 'No Deal')): ?>
+                    // Real-time polling — check for new messages every 3 s
+                    var lastMsgId = <?php echo !empty($messages) ? (int)end($messages)['id'] : 0; ?>;
+                    var myUserId  = <?php echo (int)$seller_id; ?>;
+                    var inquiryId = <?php echo (int)$active_inquiry_id; ?>;
+
+                    function escHtml(t) {
+                        return String(t || '').replace(/[&<>"']/g, function(c) {
+                            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];
+                        });
+                    }
+
+                    function buildMsgHtml(msg) {
+                        var mine = parseInt(msg.sender_id) === myUserId;
+                        var cls  = mine ? 'sent' : 'received';
+                        var d    = new Date(msg.created_at.replace(' ', 'T'));
+                        var time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                        if (parseInt(msg.is_offer)) {
+                            var bc = mine ? '#2ecc71' : '#f1c40f';
+                            return '<div class="message ' + cls + '" style="border:2px solid ' + bc + ';">' +
+                                   '<strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM ' +
+                                   parseFloat(msg.offer_amount).toFixed(2) + '</strong><br>' +
+                                   escHtml(msg.message) +
+                                   '<span class="msg-time">' + time + '</span></div>';
+                        }
+                        return '<div class="message ' + cls + '">' + escHtml(msg.message) +
+                               '<span class="msg-time">' + time + '</span></div>';
+                    }
+
+                    function pollMessages() {
+                        fetch('../buyer/get_messages.php?inquiry_id=' + inquiryId + '&after_id=' + lastMsgId)
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (data.messages && data.messages.length > 0) {
+                                    var chatEl = document.getElementById('chatMessages');
+                                    var ph = chatEl.querySelector('[data-placeholder]');
+                                    if (ph) ph.remove();
+                                    data.messages.forEach(function(msg) {
+                                        chatEl.insertAdjacentHTML('beforeend', buildMsgHtml(msg));
+                                        lastMsgId = Math.max(lastMsgId, parseInt(msg.id));
+                                        pkConversationMessages.push(msg); // keep AI transcript current
+                                    });
+                                    chatEl.scrollTop = chatEl.scrollHeight;
+                                }
+                                // Live unread badge
+                                var badge = document.getElementById('pkUnreadBadge');
+                                if (badge) {
+                                    badge.style.display = data.unread_count > 0 ? 'inline' : 'none';
+                                    if (data.unread_count > 0) badge.textContent = data.unread_count;
+                                }
+                            }).catch(function() {});
+                    }
+
+                    setInterval(pollMessages, 3000);
+                    <?php endif; ?>
 
                     function buildTranscript() {
                         return pkConversationMessages.slice(-20).map(function (msg) {

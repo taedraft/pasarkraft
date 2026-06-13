@@ -57,12 +57,6 @@ if (isset($_GET['product_id']) && isset($_GET['chat_with'])) {
         $ins->execute();
         $active_inquiry_id = $conn->insert_id;
         
-        // Auto message
-        $auto_msg = "Hello, I am interested in this product.";
-        $msg_stmt = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message) VALUES (?, ?, ?, ?)");
-        $msg_stmt->bind_param("iiis", $active_inquiry_id, $buyer_id, $s_id, $auto_msg);
-        $msg_stmt->execute();
-        
         header("Location: chat_history.php?inquiry_id=" . $active_inquiry_id);
         exit();
     }
@@ -206,7 +200,7 @@ if ($active_inquiry_id > 0) {
             <div class="nav-links">
                 <a href="../batik_page.php">Batik</a>
                 <a href="../woodcraft_page.php">Woodcraft</a>
-                <a href="chat_history.php" class="active-link" style="color: var(--accent-color);">Chat history <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
+                <a href="chat_history.php" class="active-link" style="color: var(--accent-color);">Chat History <span id="pkUnreadBadge" style="background:red;color:white;border-radius:50%;padding:2px 6px;font-size:0.75rem;margin-left:5px;<?php echo ($unread_count > 0) ? '' : 'display:none;'; ?>"><?php echo $unread_count; ?></span></a>
                 <a href="../logout.php" class="nav-login" onclick="return confirm('Are you sure you want to log out?');">Logout</a>
                 <a href="../wishlist_page.php" class="wishlist-icon">
                     <i class="far fa-heart"></i>
@@ -260,7 +254,7 @@ if ($active_inquiry_id > 0) {
                 
                 <div class="chat-messages" id="chatMessages">
                     <?php if (empty($messages)): ?>
-                        <div style="text-align:center; color:#999; margin:auto;">Send a message to start negotiating!</div>
+                        <div data-placeholder="1" style="text-align:center; color:#999; margin:auto;">Send a message to start negotiating!</div>
                     <?php else: ?>
                         <?php foreach($messages as $msg): ?>
                             <?php $is_mine = ($msg['sender_id'] == $buyer_id); ?>
@@ -282,16 +276,82 @@ if ($active_inquiry_id > 0) {
                 </div>
 
                 <div class="chat-input-area">
-                    <form class="chat-form" method="POST" action="chat_history.php?inquiry_id=<?php echo $active_inquiry_id; ?>">
-                        <input type="text" name="message" class="chat-input" placeholder="Type your message here..." required autocomplete="off" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
-                        <input type="number" step="0.01" name="offer_amount" class="offer-input" placeholder="Offer RM" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
+                    <form class="chat-form" method="POST" action="chat_history.php?inquiry_id=<?php echo $active_inquiry_id; ?>" onsubmit="return validateChatForm(this)">
+                        <input type="text" name="message" class="chat-input" placeholder="Type your message here..." autocomplete="off" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
+                        <input type="number" step="0.01" min="0.01" name="offer_amount" class="offer-input" placeholder="Offer RM" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
                         <button type="submit" class="btn-send" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>><i class="fas fa-paper-plane"></i></button>
                     </form>
                 </div>
-                <!-- Auto scroll to bottom -->
                 <script>
+                    // Scroll to bottom on load
                     var cm = document.getElementById('chatMessages');
                     if (cm) cm.scrollTop = cm.scrollHeight;
+
+                    // Require message OR offer before submitting
+                    function validateChatForm(f) {
+                        var msg   = f.querySelector('[name="message"]').value.trim();
+                        var offer = parseFloat(f.querySelector('[name="offer_amount"]').value || 0);
+                        if (!msg && !(offer > 0)) {
+                            alert('Please type a message or enter an offer amount.');
+                            return false;
+                        }
+                        return true;
+                    }
+
+                    <?php if (!($active_inquiry['status'] === 'Sold' || $active_inquiry['status'] === 'No Deal')): ?>
+                    // Real-time polling — check for new messages every 3 s
+                    var lastMsgId = <?php echo !empty($messages) ? (int)end($messages)['id'] : 0; ?>;
+                    var myUserId  = <?php echo (int)$buyer_id; ?>;
+                    var inquiryId = <?php echo (int)$active_inquiry_id; ?>;
+
+                    function escHtml(t) {
+                        return String(t || '').replace(/[&<>"']/g, function(c) {
+                            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c];
+                        });
+                    }
+
+                    function buildMsgHtml(msg) {
+                        var mine = parseInt(msg.sender_id) === myUserId;
+                        var cls  = mine ? 'sent' : 'received';
+                        var d    = new Date(msg.created_at.replace(' ', 'T'));
+                        var time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                        if (parseInt(msg.is_offer)) {
+                            var bc = mine ? '#f1c40f' : '#2ecc71';
+                            return '<div class="message ' + cls + '" style="border:2px solid ' + bc + ';">' +
+                                   '<strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM ' +
+                                   parseFloat(msg.offer_amount).toFixed(2) + '</strong><br>' +
+                                   escHtml(msg.message) +
+                                   '<span class="msg-time">' + time + '</span></div>';
+                        }
+                        return '<div class="message ' + cls + '">' + escHtml(msg.message) +
+                               '<span class="msg-time">' + time + '</span></div>';
+                    }
+
+                    function pollMessages() {
+                        fetch('get_messages.php?inquiry_id=' + inquiryId + '&after_id=' + lastMsgId)
+                            .then(function(r) { return r.json(); })
+                            .then(function(data) {
+                                if (data.messages && data.messages.length > 0) {
+                                    var chatEl = document.getElementById('chatMessages');
+                                    var ph = chatEl.querySelector('[data-placeholder]');
+                                    if (ph) ph.remove();
+                                    data.messages.forEach(function(msg) {
+                                        chatEl.insertAdjacentHTML('beforeend', buildMsgHtml(msg));
+                                        lastMsgId = Math.max(lastMsgId, parseInt(msg.id));
+                                    });
+                                    chatEl.scrollTop = chatEl.scrollHeight;
+                                }
+                                // Update nav unread badge live
+                                var badge = document.getElementById('pkUnreadBadge');
+                                if (badge) {
+                                    badge.style.display = data.unread_count > 0 ? 'inline' : 'none';
+                                    if (data.unread_count > 0) badge.textContent = data.unread_count;
+                                }
+                            }).catch(function() {});
+                    }
+
+                    setInterval(pollMessages, 3000);
+                    <?php endif; ?>
                 </script>
             <?php else: ?>
                 <div class="empty-chat">
