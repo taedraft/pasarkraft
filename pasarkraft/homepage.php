@@ -303,7 +303,12 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                 <a href="batik_page.php">Batik</a>
                 <a href="woodcraft_page.php">Woodcraft</a>
                 <a href="#about">About</a>
-                <a href="buyer/chat_history.php">Chat history
+                <?php
+                $chat_href = (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer')
+                    ? 'buyer/chat_history.php'
+                    : 'buyer/login_buyer.php?from=chat';
+                ?>
+                <a href="<?php echo $chat_href; ?>">Chat History
                     <?php if (isset($unread_count) && $unread_count > 0)
                         echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?></a>
                 <?php if (isset($_SESSION['user_id'])): ?>

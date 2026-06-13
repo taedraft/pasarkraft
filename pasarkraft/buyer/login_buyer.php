@@ -96,6 +96,13 @@
                 <h2>Welcome Back</h2>
                 <p>Login to access your wishlist and chat history.</p>
 
+                <?php if (isset($_GET['from']) && $_GET['from'] === 'chat'): ?>
+                    <div style="background:#eff6ff; border-left:4px solid #3b82f6; color:#1d4ed8; padding:12px 16px; margin-bottom:1.2rem; border-radius:6px; display:flex; align-items:center; gap:10px; font-size:0.9rem;">
+                        <i class="fas fa-comment-dots" style="font-size:1.1rem;"></i>
+                        <span>Log in to view your Chat History.</span>
+                    </div>
+                <?php endif; ?>
+
                 <?php if (isset($_SESSION['login_error'])): ?>
                     <div
                         style="background-color: #fee2e2; border-left: 4px solid #ef4444; color: #b91c1c; padding: 12px 16px; margin-bottom: 1.5rem; font-size: 0.9rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
