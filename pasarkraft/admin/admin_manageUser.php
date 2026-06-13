@@ -17,6 +17,8 @@ function column_exists_admin($conn, $table, $column) {
 }
 
 $has_approval = column_exists_admin($conn, 'artisans', 'approval_status');
+// Guard against missing 'status' column in users table (column may not exist on all deployments)
+$has_status = column_exists_admin($conn, 'users', 'status');
 if ($has_approval) {
     $notif_stmt = $conn->query("SELECT COUNT(*) as cnt FROM artisans WHERE approval_status = 'pending'");
     $admin_notif_count = $notif_stmt ? ($notif_stmt->fetch_assoc()["cnt"] ?? 0) : 0;
@@ -41,7 +43,10 @@ if (isset($_GET["action"]) && isset($_GET["id"])) {
     } elseif ($action === "reject") {
         $conn->query("UPDATE artisans SET approval_status = 'rejected' WHERE user_id = $uid");
     } elseif ($action === "suspend") {
-        $conn->query("UPDATE users SET status = 'suspended' WHERE id = $uid");
+        // Only run if the status column exists in the users table
+        if ($has_status) {
+            $conn->query("UPDATE users SET status = 'suspended' WHERE id = $uid");
+        }
     } elseif ($action === "delete") {
         $conn->query("DELETE FROM users WHERE id = $uid");
     }
@@ -53,7 +58,8 @@ $users_data = [];
 $pending_count = 0;
 
 $approval_select = $has_approval ? 'a.approval_status' : "NULL AS approval_status";
-$query = "SELECT u.id, u.firstname, u.lastname, u.username, u.email, u.role, u.status, u.created_at, a.shopname, a.ssm, a.phone, $approval_select 
+$status_select   = $has_status   ? 'u.status'          : "NULL AS status";
+$query = "SELECT u.id, u.firstname, u.lastname, u.username, u.email, u.role, $status_select, u.created_at, a.shopname, a.ssm, a.phone, $approval_select 
           FROM users u 
           LEFT JOIN artisans a ON u.id = a.user_id 
           WHERE u.role != 'admin' 
