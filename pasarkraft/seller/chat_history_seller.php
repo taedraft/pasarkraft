@@ -94,10 +94,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
 
                     // Insert system message to announce status change in chat
                     $status_labels = [
-                        'Deal Agreed'   => '🤝 Seller accepted the deal.',
-                        'No Deal'       => '❌ No deal was reached.',
-                        'Sold'          => '✅ Transaction marked as sold.',
-                        'In Discussion' => '🔄 Deal cancelled — back to negotiation.',
+                        'Deal Agreed'   => '[Deal Accepted] Seller accepted the deal.',
+                        'No Deal'       => '[No Deal] No deal was reached.',
+                        'Sold'          => '[Sold] Transaction marked as sold.',
+                        'In Discussion' => '[Reopened] Deal cancelled - back to negotiation.',
                     ];
                     if (isset($status_labels[$new_status])) {
                         $sys_msg = $status_labels[$new_status];
@@ -650,7 +650,7 @@ if ($active_inquiry_id > 0) {
                     <?php else: ?>
                         <?php foreach ($messages as $msg): ?>
                             <?php $is_mine = ($msg['sender_id'] == $seller_id); ?>
-                            <?php $seen = ($is_mine && !empty($msg['is_read'])) ? ' &middot; <span class="msg-read-inline">✓ Seen</span>' : ''; ?>
+                            <?php $seen = ($is_mine && !empty($msg['is_read'])) ? ' &middot; <span class="msg-read-inline">&#10003; Seen</span>' : ''; ?>
                             <?php if (!empty($msg['is_system'])): ?>
                                 <div class="message-system"><?php echo htmlspecialchars($msg['message']); ?></div>
                             <?php elseif ($msg['is_offer']): ?>
@@ -729,7 +729,7 @@ if ($active_inquiry_id > 0) {
                         var cls  = mine ? 'sent' : 'received';
                         var d    = new Date(msg.created_at.replace(' ', 'T'));
                         var time = d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                        var seen = (mine && parseInt(msg.is_read)) ? ' · <span class="msg-read-inline">✓ Seen</span>' : '';
+                        var seen = (mine && parseInt(msg.is_read)) ? ' &middot; <span class="msg-read-inline">&#10003; Seen</span>' : '';
                         if (parseInt(msg.is_system)) {
                             return '<div class="message-system">' + escHtml(msg.message) + '</div>';
                         }
