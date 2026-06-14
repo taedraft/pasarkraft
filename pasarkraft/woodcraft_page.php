@@ -30,8 +30,6 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
 }
 
 
-$is_buyer = isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer';
-
 // Fetch Woodcraft products — approved sellers, in-stock only
 $sort = $_GET['sort'] ?? 'featured';
 $order_sql = "ORDER BY p.created_at DESC";
@@ -50,22 +48,84 @@ if ($appr_col_res) {
     $has_approval_col = ($appr_col_res->fetch_assoc()['c'] ?? 0) > 0;
 }
 
-$approval_filter = $has_approval_col ? "AND COALESCE(a.approval_status, 'approved') = 'approved'" : "";
+// Filter parameters from URL
+$selected_subs = $_GET['subcategories'] ?? [];
+$selected_techs = $_GET['techniques'] ?? [];
+$max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 2000;
+$selected_color = $_GET['color'] ?? '';
 
+// Build dynamic WHERE clause
+$where_clauses = ["p.category = 'Woodcraft'", "p.stock > 0", "p.price <= ?"];
+$params = [$max_price];
+$types = "d";
+
+if ($has_approval_col) {
+    $where_clauses[] = "COALESCE(a.approval_status, 'approved') = 'approved'";
+}
+
+if (!empty($selected_subs)) {
+    $placeholders = implode(',', array_fill(0, count($selected_subs), '?'));
+    $where_clauses[] = "p.subcategory IN ($placeholders)";
+    foreach ($selected_subs as $s) {
+        $params[] = $s;
+        $types .= "s";
+    }
+}
+
+if (!empty($selected_techs)) {
+    $placeholders = implode(',', array_fill(0, count($selected_techs), '?'));
+    $where_clauses[] = "p.technique IN ($placeholders)";
+    foreach ($selected_techs as $t) {
+        $params[] = $t;
+        $types .= "s";
+    }
+}
+
+if (!empty($selected_color)) {
+    $color_term = $selected_color;
+    if ($color_term === 'Dark Teak') {
+        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Teak%' OR p.color LIKE '%Brown%' OR p.color LIKE '%Mahogany%')";
+        $params[] = "%Dark Teak%";
+    } elseif ($color_term === 'Medium Oak') {
+        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Oak%' OR p.color LIKE '%Brown%')";
+        $params[] = "%Medium Oak%";
+    } elseif ($color_term === 'Light Pine') {
+        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Pine%' OR p.color LIKE '%Light%')";
+        $params[] = "%Light Pine%";
+    } elseif ($color_term === 'Ebony') {
+        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Ebony%' OR p.color LIKE '%Black%')";
+        $params[] = "%Ebony%";
+    } elseif ($color_term === 'Driftwood') {
+        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Driftwood%' OR p.color LIKE '%Grey%' OR p.color LIKE '%Gray%')";
+        $params[] = "%Driftwood%";
+    } else {
+        $where_clauses[] = "p.color LIKE ?";
+        $params[] = "%" . $color_term . "%";
+    }
+    $types .= "s";
+}
+
+$where_sql = implode(' AND ', $where_clauses);
 $sql = "SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path, a.shopname
         FROM products p
         LEFT JOIN artisans a ON p.seller_id = a.user_id
-        WHERE p.category = 'Woodcraft'
-          AND p.stock > 0
-          $approval_filter
+        WHERE $where_sql
         $order_sql";
-$result = $conn->query($sql);
+
+$stmt = $conn->prepare($sql);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$result = $stmt->get_result();
+
 $products = [];
 if ($result && $result->num_rows > 0) {
     while ($row = $result->fetch_assoc()) {
         $products[] = $row;
     }
 }
+$stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="ms">
@@ -155,12 +215,7 @@ if ($result && $result->num_rows > 0) {
                 <a href="batik_page.php">Batik</a>
                 <a href="woodcraft_page.php" class="active-link" style="color: #8d6e63;">Woodcraft</a>
                 <a href="homepage.php#about">About</a>
-                <?php
-                $chat_href = (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer')
-                    ? 'buyer/chat_history.php'
-                    : 'buyer/login_buyer.php?from=chat';
-                ?>
-                <a href="<?php echo $chat_href; ?>">Chat History <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
+                <a href="buyer/chat_history.php">Chat history <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <a href="logout.php" class="nav-login"
                         onclick="return confirm('Are you sure you want to log out?');">Logout</a>
@@ -192,48 +247,72 @@ if ($result && $result->num_rows > 0) {
 
         <!-- Sidebar Filter -->
         <aside class="collection-sidebar">
-            <div class="filter-group">
-                <h3>Category</h3>
-                <ul>
-                    <li><label><input type="checkbox"> Furniture</label></li>
-                    <li><label><input type="checkbox"> Home Decor</label></li>
-                    <li><label><input type="checkbox"> Kitchenware</label></li>
-                    <li><label><input type="checkbox"> Traditional Carving</label></li>
-                    <li><label><input type="checkbox"> Souvenirs</label></li>
-                </ul>
-            </div>
+            <form id="filterForm" method="GET" action="">
+                <!-- Keep sort parameter if set -->
+                <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
+                <!-- Hidden input for selected color -->
+                <input type="hidden" name="color" id="selectedColor" value="<?php echo htmlspecialchars($selected_color); ?>">
 
-            <div class="filter-group">
-                <h3>Price Range</h3>
-                <div class="price-slider-container">
-                    <input type="range" class="price-range" min="0" max="2000" value="500">
-                    <div class="price-values">
-                        <span>RM 0</span>
-                        <span>RM 2000+</span>
+                <div class="filter-group">
+                    <h3>Category</h3>
+                    <ul>
+                        <?php
+                        $subcategories_list = ["Furniture", "Home Decor", "Kitchenware", "Traditional Carving", "Souvenirs"];
+                        foreach ($subcategories_list as $sub):
+                            $checked = in_array($sub, $selected_subs) ? 'checked' : '';
+                        ?>
+                            <li><label><input type="checkbox" name="subcategories[]" value="<?php echo htmlspecialchars($sub); ?>" <?php echo $checked; ?> onchange="this.form.submit()"> <?php echo htmlspecialchars($sub); ?></label></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+
+                <div class="filter-group">
+                    <h3>Price Range</h3>
+                    <div class="price-slider-container">
+                        <input type="range" name="max_price" class="price-range" min="0" max="2000" value="<?php echo htmlspecialchars($max_price); ?>" onchange="this.form.submit()" oninput="document.getElementById('priceVal').innerText = 'RM ' + this.value">
+                        <div class="price-values">
+                            <span>RM 0</span>
+                            <span id="priceVal">RM <?php echo htmlspecialchars($max_price); ?></span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="filter-group">
-                <h3>Wood Tone</h3>
-                <div class="sidebar-color-options">
-                    <span class="color-swatch" style="background: #5d4037;" title="Dark Teak"></span>
-                    <span class="color-swatch" style="background: #8d6e63;" title="Medium Oak"></span>
-                    <span class="color-swatch" style="background: #d7ccc8;" title="Light Pine"></span>
-                    <span class="color-swatch" style="background: #3e2723;" title="Ebony"></span>
-                    <span class="color-swatch" style="background: #a1887f;" title="Driftwood"></span>
+                <div class="filter-group">
+                    <h3>Wood Tone</h3>
+                    <div class="sidebar-color-options">
+                        <?php
+                        $colors_list = [
+                            "#5d4037" => "Dark Teak",
+                            "#8d6e63" => "Medium Oak",
+                            "#d7ccc8" => "Light Pine",
+                            "#3e2723" => "Ebony",
+                            "#a1887f" => "Driftwood"
+                        ];
+                        foreach ($colors_list as $hex => $title):
+                            $selected_class = ($selected_color === $title) ? 'selected' : '';
+                        ?>
+                            <span class="color-swatch <?php echo $selected_class; ?>" style="background: <?php echo $hex; ?>;" title="<?php echo htmlspecialchars($title); ?>" onclick="selectColor('<?php echo htmlspecialchars($title); ?>')"></span>
+                        <?php endforeach; ?>
+                    </div>
                 </div>
-            </div>
 
-            <div class="filter-group">
-                <h3>Technique</h3>
-                <ul>
-                    <li><label><input type="checkbox"> Hand-Carved</label></li>
-                    <li><label><input type="checkbox"> Lathe Turned</label></li>
-                    <li><label><input type="checkbox"> Relief Carving</label></li>
-                    <li><label><input type="checkbox"> Inlay Work</label></li>
-                </ul>
-            </div>
+                <div class="filter-group">
+                    <h3>Technique</h3>
+                    <ul>
+                        <?php
+                        $techniques_list = ["Hand-Carved", "Lathe Turned", "Relief Carving", "Inlay Work"];
+                        foreach ($techniques_list as $tech):
+                            $checked = in_array($tech, $selected_techs) ? 'checked' : '';
+                        ?>
+                            <li><label><input type="checkbox" name="techniques[]" value="<?php echo htmlspecialchars($tech); ?>" <?php echo $checked; ?> onchange="this.form.submit()"> <?php echo htmlspecialchars($tech); ?></label></li>
+                        <?php endforeach; ?>
+                    </ul>
+                </div>
+
+                <div style="margin-top: 1.5rem; display: flex; gap: 0.5rem;">
+                    <a href="?" class="btn-apply-filter" style="text-align: center; text-decoration: none; background: #e74c3c; flex: 1; padding: 8px 0;">Clear All</a>
+                </div>
+            </form>
         </aside>
 
         <!-- Product Grid -->
@@ -241,11 +320,11 @@ if ($result && $result->num_rows > 0) {
             <div class="collection-toolbar">
                 <span class="result-count">Showing <?php echo count($products); ?> products</span>
                 <div class="sort-dropdown">
-                    Sort by: <select onchange="window.location.href='?sort='+this.value">
-                        <option value="featured" <?php echo (!isset($_GET['sort']) || $_GET['sort'] == 'featured') ? 'selected' : ''; ?>>Featured</option>
-                        <option value="price_low" <?php echo (isset($_GET['sort']) && $_GET['sort'] == 'price_low') ? 'selected' : ''; ?>>Price: Low to High</option>
-                        <option value="price_high" <?php echo (isset($_GET['sort']) && $_GET['sort'] == 'price_high') ? 'selected' : ''; ?>>Price: High to Low</option>
-                        <option value="new" <?php echo (isset($_GET['sort']) && $_GET['sort'] == 'new') ? 'selected' : ''; ?>>New Arrivals</option>
+                    Sort by: <select onchange="changeSort(this.value)">
+                        <option value="featured" <?php echo ($sort === 'featured') ? 'selected' : ''; ?>>Featured</option>
+                        <option value="price_low" <?php echo ($sort === 'price_low') ? 'selected' : ''; ?>>Price: Low to High</option>
+                        <option value="price_high" <?php echo ($sort === 'price_high') ? 'selected' : ''; ?>>Price: High to Low</option>
+                        <option value="new" <?php echo ($sort === 'new') ? 'selected' : ''; ?>>New Arrivals</option>
                     </select>
                 </div>
             </div>
@@ -268,17 +347,8 @@ if ($result && $result->num_rows > 0) {
                         ?>
                         <article class="product-card" data-product-id="<?php echo $item['id']; ?>">
                             <div class="product-image">
-                                <?php
-                                $img_raw = $item['image_path'] ?? '';
-                                if (empty($img_raw)) {
-                                    $img_src = 'png/wood_art.png';
-                                } elseif (strpos($img_raw, '/') === false) {
-                                    $img_src = 'png/' . htmlspecialchars($img_raw);
-                                } else {
-                                    $img_src = htmlspecialchars($img_raw);
-                                }
-                                ?>
-                                <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($item['title']); ?>">
+                                <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'wood_chair.png'); ?>"
+                                    alt="<?php echo htmlspecialchars($item['title']); ?>">
                             </div>
                             <div class="product-info">
                                 <div class="product-meta">
@@ -289,8 +359,8 @@ if ($result && $result->num_rows > 0) {
                                 </div>
                                 <h3 class="product-title"><?php echo htmlspecialchars($item['title']); ?></h3>
                                 <span class="product-price">RM <?php echo number_format($item['price'], 2); ?></span>
-                                <a href="<?php echo $is_buyer ? 'buyer/chat_history.php?chat_with='.urlencode($item['seller_id']).'&product_id='.$item['id'] : 'buyer/login_buyer.php?from=chat'; ?>"
-                                    class="btn-chat" data-product-id="<?php echo $item['id']; ?>"><i class="fas fa-comment-dots"></i> Chat with Seller</a>
+                                <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>&product_id=<?php echo $item['id']; ?>"
+                                    class="btn-chat" data-product-id="<?php echo $item['id']; ?>">Chat with Seller</a>
                             </div>
                         </article>
                     <?php endforeach; ?>
@@ -323,6 +393,33 @@ if ($result && $result->num_rows > 0) {
 </body>
 
 <script>
+    function selectColor(colorTitle) {
+        const hiddenInput = document.getElementById('selectedColor');
+        if (hiddenInput.value === colorTitle) {
+            hiddenInput.value = '';
+        } else {
+            hiddenInput.value = colorTitle;
+        }
+        document.getElementById('filterForm').submit();
+    }
+
+    function changeSort(val) {
+        const form = document.getElementById('filterForm');
+        if (form) {
+            let sortInput = form.querySelector('input[name="sort"]');
+            if (!sortInput) {
+                sortInput = document.createElement('input');
+                sortInput.type = 'hidden';
+                sortInput.name = 'sort';
+                form.appendChild(sortInput);
+            }
+            sortInput.value = val;
+            form.submit();
+        } else {
+            window.location.href = '?sort=' + encodeURIComponent(val);
+        }
+    }
+
     function toggleWishlist(btn, productId) {
         fetch('buyer/toggle_wishlist.php', {
             method: 'POST',
