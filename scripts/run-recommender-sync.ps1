@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $EnvFile = Join-Path $RepoRoot ".env"
-$Script = Join-Path $RepoRoot "pasarkraft\daily_recommender_sync.py"
+$Script = Join-Path $RepoRoot "daily_recommender_sync.py"
 
 if (-not (Test-Path $Script)) {
     Write-Error "Missing $Script"

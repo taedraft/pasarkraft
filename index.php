@@ -1,5 +1,5 @@
 <?php
-// Redirect to the nested pasarkraft subdirectory
-header("Location: pasarkraft/");
+// Redirect to the main homepage
+header("Location: homepage.php");
 exit();
 ?>

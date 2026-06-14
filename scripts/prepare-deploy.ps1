@@ -6,7 +6,7 @@
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
-$Source = Join-Path $RepoRoot "pasarkraft"
+$Source = $RepoRoot
 $Dist = Join-Path $RepoRoot "dist"
 $Staging = Join-Path $Dist "htdocs-staging"
 $ZipPath = Join-Path $Dist "pasarkraft-htdocs.zip"
@@ -20,7 +20,12 @@ $ExcludeNames = @(
     "generate_data.py",
     "generate_test_data.py",
     "run_daily_recommender.bat",
-    "COPILOT.md"
+    "COPILOT.md",
+    "README.md",
+    "TASK1.md",
+    "TASK2.md",
+    "FUTURE_RENDER_SETUP.md",
+    ".gitignore"
 )
 
 $ExcludePatterns = @(
@@ -42,6 +47,7 @@ function Should-Exclude([string]$Name, [string]$RelativePath) {
         if ($Name -like $pattern) { return $true }
     }
     if ($RelativePath -match '(\\|/)__pycache__(\\|/)') { return $true }
+    if ($RelativePath -match '^(dist|scripts|\.git|pasarkraft)(\\|/|$)') { return $true }
     return $false
 }
 
