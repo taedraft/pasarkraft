@@ -502,6 +502,9 @@ class PasarKraftRecommender {
      * directly into the caching tables.
      */
     public function generateAndCacheAllRecommendations() {
+        // Allow up to 2 minutes — InfinityFree default is 30s which can kill training mid-run
+        @set_time_limit(120);
+
         // 1. Train the pipelines
         $this->trainTfidf();
         $this->trainSVD();

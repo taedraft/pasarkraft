@@ -12,12 +12,11 @@ require "../recommender.php";
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Only allow admin (skip for development convenience like the rest of the admin panel)
+// Only allow admin
 if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
-    // Uncomment below to enforce auth:
-    // http_response_code(403);
-    // echo json_encode(['error' => 'Unauthorized']);
-    // exit;
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
 }
 
 // Cap products at 25 to prevent timeout on shared hosting.

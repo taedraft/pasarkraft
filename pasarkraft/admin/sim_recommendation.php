@@ -6,7 +6,9 @@ require "../recommender.php";
 header('Content-Type: application/json');
 
 if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
-    // skip security block for dev ease or allow admin checks
+    http_response_code(403);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit();
 }
 
 if (!isset($_GET['user_id']) || !isset($_GET['product_id'])) {
