@@ -62,10 +62,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt_check->bind_param("ii", $product_id, $seller_id);
         $stmt_check->execute();
         if ($stmt_check->get_result()->num_rows > 0) {
-            $stmt_update = $conn->prepare("UPDATE products SET title = ?, description = ?, category = ?, subcategory = ?, technique = ?, color = ?, material = ?, style = ?, tags = ?, price = ?, stock = ? WHERE id = ?");
-            $stmt_update->bind_param("sssssssssdii", $title, $description, $category, $subcategory, $technique, $color, $material, $style, $tags, $price, $stock, $product_id);
+            // Handle optional image update
+            $new_image_path = null;
+            if (isset($_FILES['product_image']) && $_FILES['product_image']['error'] === UPLOAD_ERR_OK) {
+                $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+                if (in_array($_FILES['product_image']['type'], $allowed_types)) {
+                    $upload_dir = '../uploads/';
+                    if (!is_dir($upload_dir)) mkdir($upload_dir, 0777, true);
+                    $filename = time() . '_' . basename($_FILES['product_image']['name']);
+                    if (move_uploaded_file($_FILES['product_image']['tmp_name'], $upload_dir . $filename)) {
+                        $new_image_path = 'uploads/' . $filename;
+                    }
+                }
+            }
+            if ($new_image_path) {
+                $stmt_update = $conn->prepare("UPDATE products SET title = ?, description = ?, category = ?, subcategory = ?, technique = ?, color = ?, material = ?, style = ?, tags = ?, price = ?, stock = ?, image_path = ? WHERE id = ?");
+                $stmt_update->bind_param("sssssssssdisi", $title, $description, $category, $subcategory, $technique, $color, $material, $style, $tags, $price, $stock, $new_image_path, $product_id);
+            } else {
+                $stmt_update = $conn->prepare("UPDATE products SET title = ?, description = ?, category = ?, subcategory = ?, technique = ?, color = ?, material = ?, style = ?, tags = ?, price = ?, stock = ? WHERE id = ?");
+                $stmt_update->bind_param("sssssssssdii", $title, $description, $category, $subcategory, $technique, $color, $material, $style, $tags, $price, $stock, $product_id);
+            }
             if ($stmt_update->execute()) {
-                echo json_encode(['success' => true]);
+                echo json_encode(['success' => true, 'new_image' => $new_image_path ? '../' . $new_image_path : null]);
                 exit();
             }
         }
@@ -226,10 +244,20 @@ $stmt->close();
 
         .item-meta-grid {
             display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(2, 1fr);
             gap: 10px;
             margin-top: 10px;
         }
+        /* Page visibility badge */
+        .page-badge {
+            font-size: 0.72rem; padding: 2px 10px; border-radius: 20px;
+            text-decoration: none; display: inline-flex; align-items: center; gap: 4px;
+            font-weight: 500; border: 1px solid transparent; cursor: pointer;
+        }
+        .page-badge-batik  { background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe; }
+        .page-badge-woodcraft { background: #dcfce7; color: #166534; border-color: #bbf7d0; }
+        .item-image-edit { margin-top: 6px; display: none; }
+        .item-image-edit input { font-size: 0.7rem; padding: 3px; width: 95px; border: 1px dashed #aaa; border-radius: 4px; }
 
         .item-meta-grid .form-group-small {
             margin-bottom: 0;
@@ -505,21 +533,25 @@ $stmt->close();
                     ?>
                     <div class="inventory-item" id="item-<?php echo $item['id']; ?>">
                         <div class="item-image">
-                            <?php if (!empty($item['image_path'])):
-                                $img_src = $item['image_path'];
-                                if (strpos($img_src, '/') === false) {
-                                    $img_src = '../png/' . $img_src;
-                                } else {
-                                    $img_src = '../' . $img_src;
-                                }
-                                ?>
-                                <img src="<?php echo htmlspecialchars($img_src); ?>" alt="Product">
+                            <?php
+                            $img_src = '';
+                            if (!empty($item['image_path'])) {
+                                $img_src = strpos($item['image_path'], '/') === false
+                                    ? '../png/' . $item['image_path']
+                                    : '../' . $item['image_path'];
+                            }
+                            ?>
+                            <?php if ($img_src): ?>
+                                <img src="<?php echo htmlspecialchars($img_src); ?>" alt="Product" class="item-img-preview" id="img-preview-<?php echo $item['id']; ?>" style="width:100%;height:100%;object-fit:cover;border-radius:8px;">
                             <?php else: ?>
-                                <div
-                                    style="width:100%; height:100%; background:#f5f5f5; border-radius:8px; display:flex; align-items:center; justify-content:center; color:#ccc;">
-                                    <i class="fas fa-image"></i>
+                                <div style="width:100%;height:100%;background:#f5f5f5;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#ccc;flex-direction:column;gap:3px;">
+                                    <i class="fas fa-image" style="font-size:1.4rem;"></i>
+                                    <span style="font-size:0.62rem;">No image</span>
                                 </div>
                             <?php endif; ?>
+                            <div class="item-image-edit">
+                                <input type="file" class="item-image-input" accept="image/*" title="Update product image">
+                            </div>
                         </div>
                         <div class="item-details">
                             <div class="form-group-small">
@@ -533,30 +565,53 @@ $stmt->close();
                             <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
                                 <span class="category"><?php echo htmlspecialchars($item['category']); ?></span>
                                 <?php if (!empty($item['subcategory'])): ?>
-                                    <span class="category" style="background:#f0f8ff;"><i class="fas fa-tag"
-                                            style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['subcategory']); ?></span>
+                                    <span class="category" style="background:#f0f8ff;"><i class="fas fa-tag" style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['subcategory']); ?></span>
                                 <?php endif; ?>
                                 <?php if (!empty($item['technique'])): ?>
-                                    <span class="category" style="background:#f9f2f4;"><i class="fas fa-paint-brush"
-                                            style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['technique']); ?></span>
+                                    <span class="category" style="background:#f9f2f4;"><i class="fas fa-paint-brush" style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['technique']); ?></span>
                                 <?php endif; ?>
                                 <?php if (!empty($item['color'])): ?>
-                                    <span class="category" style="background:#fdf6e3;"><i class="fas fa-palette"
-                                            style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['color']); ?></span>
+                                    <span class="category" style="background:#fdf6e3;"><i class="fas fa-palette" style="font-size:0.8em; margin-right:3px;"></i><?php echo htmlspecialchars($item['color']); ?></span>
+                                <?php endif; ?>
+                                <?php if (($item['category'] ?? '') === 'Batik'): ?>
+                                    <a href="../batik_page.php" target="_blank" class="page-badge page-badge-batik"><i class="fas fa-external-link-alt" style="font-size:0.65rem;"></i> Batik Page</a>
+                                <?php elseif (($item['category'] ?? '') === 'Woodcraft'): ?>
+                                    <a href="../woodcraft_page.php" target="_blank" class="page-badge page-badge-woodcraft"><i class="fas fa-external-link-alt" style="font-size:0.65rem;"></i> Woodcraft Page</a>
                                 <?php endif; ?>
                             </div>
                             <div class="item-meta-grid">
                                 <div class="form-group-small">
                                     <label>Category</label>
-                                    <input type="text" class="form-control-sm item-category-input" value="<?php echo htmlspecialchars($item['category'] ?? ''); ?>" disabled>
+                                    <select class="form-control-sm item-category-input" disabled onchange="updateEditSubAndTech(this)">
+                                        <option value="Batik" <?php echo ($item['category'] ?? '') === 'Batik' ? 'selected' : ''; ?>>Batik</option>
+                                        <option value="Woodcraft" <?php echo ($item['category'] ?? '') === 'Woodcraft' ? 'selected' : ''; ?>>Woodcraft</option>
+                                    </select>
                                 </div>
                                 <div class="form-group-small">
                                     <label>Sub-category</label>
-                                    <input type="text" class="form-control-sm item-subcategory-input" value="<?php echo htmlspecialchars($item['subcategory'] ?? ''); ?>" disabled>
+                                    <select class="form-control-sm item-subcategory-input" disabled>
+                                        <?php
+                                        $editSubs = ($item['category'] ?? '') === 'Batik'
+                                            ? ["Batik Textile", "Men's Wear", "Women's Wear", "Handcrafted Items", "Accessories"]
+                                            : ["Furniture", "Home Decor", "Kitchenware", "Traditional Carving", "Souvenirs"];
+                                        foreach ($editSubs as $sub):
+                                        ?>
+                                            <option value="<?php echo htmlspecialchars($sub); ?>" <?php echo ($item['subcategory'] ?? '') === $sub ? 'selected' : ''; ?>><?php echo htmlspecialchars($sub); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
                                 <div class="form-group-small">
                                     <label>Technique</label>
-                                    <input type="text" class="form-control-sm item-technique-input" value="<?php echo htmlspecialchars($item['technique'] ?? ''); ?>" disabled>
+                                    <select class="form-control-sm item-technique-input" disabled>
+                                        <?php
+                                        $editTechs = ($item['category'] ?? '') === 'Batik'
+                                            ? ["Hand-drawn (Canting)", "Block Print (Cap)", "Screen Print"]
+                                            : ["Hand-Carved", "Lathe Turned", "Relief Carving", "Inlay Work"];
+                                        foreach ($editTechs as $tech):
+                                        ?>
+                                            <option value="<?php echo htmlspecialchars($tech); ?>" <?php echo ($item['technique'] ?? '') === $tech ? 'selected' : ''; ?>><?php echo htmlspecialchars($tech); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
                                 </div>
                                 <div class="form-group-small">
                                     <label>Color</label>
@@ -570,7 +625,7 @@ $stmt->close();
                                     <label>Style</label>
                                     <input type="text" class="form-control-sm item-style-input" value="<?php echo htmlspecialchars($item['style'] ?? ''); ?>" disabled>
                                 </div>
-                                <div class="form-group-small" style="grid-column: span 3;">
+                                <div class="form-group-small" style="grid-column: span 2;">
                                     <label>Tags</label>
                                     <input type="text" class="form-control-sm item-tags-input" value="<?php echo htmlspecialchars($item['tags'] ?? ''); ?>" disabled>
                                 </div>
@@ -674,7 +729,8 @@ $stmt->close();
                 <div class="form-group">
                     <label>Product Image</label>
                     <input type="file" name="product_image" accept="image/*" class="form-control-sm"
-                        style="padding-top: 5px;">
+                        style="padding-top: 5px;" required>
+                    <small style="color:#ef4444; font-size:0.78rem; margin-top:3px; display:block;"><i class="fas fa-info-circle"></i> Product image is required.</small>
                 </div>
                 <button type="submit" class="btn btn-full">Create Listing</button>
             </form>
@@ -749,11 +805,15 @@ $stmt->close();
             const saveBtn = item.querySelector('.btn-save');
 
             inputs.forEach(input => {
-                if (!input.classList.contains('item-status-input')) {
+                if (!input.classList.contains('item-status-input') && !input.classList.contains('item-image-input')) {
                     input.disabled = false;
                     input.style.borderColor = 'var(--accent-color)';
                 }
             });
+
+            // Show image update field
+            const imageEdit = item.querySelector('.item-image-edit');
+            if (imageEdit) imageEdit.style.display = 'block';
 
             editBtn.style.display = 'none';
             saveBtn.style.display = 'flex';
@@ -766,44 +826,40 @@ $stmt->close();
             const editBtn = item.querySelector('.btn-edit');
             const saveBtn = item.querySelector('.btn-save');
 
-            const titleInput = item.querySelector('.item-title-input');
-            const descInput = item.querySelector('.item-desc-input');
+            const titleInput    = item.querySelector('.item-title-input');
+            const descInput     = item.querySelector('.item-desc-input');
             const categoryInput = item.querySelector('.item-category-input');
-            const subcategoryInput = item.querySelector('.item-subcategory-input');
-            const techniqueInput = item.querySelector('.item-technique-input');
-            const colorInput = item.querySelector('.item-color-input');
+            const subcatInput   = item.querySelector('.item-subcategory-input');
+            const techInput     = item.querySelector('.item-technique-input');
+            const colorInput    = item.querySelector('.item-color-input');
             const materialInput = item.querySelector('.item-material-input');
-            const styleInput = item.querySelector('.item-style-input');
-            const tagsInput = item.querySelector('.item-tags-input');
-            const stockInput = item.querySelector('.item-stock-input');
-            const priceInput = item.querySelector('.item-price-input');
-            const statusInput = item.querySelector('.item-status-input');
+            const styleInput    = item.querySelector('.item-style-input');
+            const tagsInput     = item.querySelector('.item-tags-input');
+            const stockInput    = item.querySelector('.item-stock-input');
+            const priceInput    = item.querySelector('.item-price-input');
+            const statusInput   = item.querySelector('.item-status-input');
+            const imageInput    = item.querySelector('.item-image-input');
 
-            const newPrice = priceInput.value;
-            const newStock = stockInput.value;
-            const payload = [
-                `action=edit_product`,
-                `product_id=${encodeURIComponent(productId)}`,
-                `title=${encodeURIComponent(titleInput.value)}`,
-                `description=${encodeURIComponent(descInput.value)}`,
-                `category=${encodeURIComponent(categoryInput.value)}`,
-                `subcategory=${encodeURIComponent(subcategoryInput.value)}`,
-                `technique=${encodeURIComponent(techniqueInput.value)}`,
-                `color=${encodeURIComponent(colorInput.value)}`,
-                `material=${encodeURIComponent(materialInput.value)}`,
-                `style=${encodeURIComponent(styleInput.value)}`,
-                `tags=${encodeURIComponent(tagsInput.value)}`,
-                `price=${encodeURIComponent(newPrice)}`,
-                `stock=${encodeURIComponent(newStock)}`
-            ].join('&');
+            // Use FormData so optional image file can be included in the same request
+            const formData = new FormData();
+            formData.append('action',      'edit_product');
+            formData.append('product_id',  productId);
+            formData.append('title',       titleInput.value);
+            formData.append('description', descInput.value);
+            formData.append('category',    categoryInput.value);
+            formData.append('subcategory', subcatInput.value);
+            formData.append('technique',   techInput.value);
+            formData.append('color',       colorInput.value);
+            formData.append('material',    materialInput.value);
+            formData.append('style',       styleInput.value);
+            formData.append('tags',        tagsInput.value);
+            formData.append('price',       priceInput.value);
+            formData.append('stock',       stockInput.value);
+            if (imageInput && imageInput.files[0]) {
+                formData.append('product_image', imageInput.files[0]);
+            }
 
-            fetch('myshop.php', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: payload
-            })
+            fetch('myshop.php', { method: 'POST', body: formData })
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -812,13 +868,27 @@ $stmt->close();
                             input.style.borderColor = '#ddd';
                         });
 
+                        // Hide image edit field
+                        const imageEdit = item.querySelector('.item-image-edit');
+                        if (imageEdit) imageEdit.style.display = 'none';
+
                         editBtn.style.display = 'flex';
                         saveBtn.style.display = 'none';
+
+                        // Update image preview if a new image was uploaded
+                        if (data.new_image) {
+                            const preview = item.querySelector('.item-img-preview');
+                            if (preview) {
+                                preview.src = data.new_image + '?t=' + Date.now();
+                            } else {
+                                const imgDiv = item.querySelector('.item-image');
+                                if (imgDiv) imgDiv.innerHTML = `<img src="${data.new_image}" alt="Product" class="item-img-preview" style="width:100%;height:100%;object-fit:cover;border-radius:8px;"><div class="item-image-edit" style="display:none;"><input type="file" class="item-image-input" accept="image/*" title="Update product image"></div>`;
+                            }
+                        }
 
                         alert('Product updated successfully!');
 
                         statusInput.className = 'form-control-sm item-status-input';
-
                         if (parseInt(stockInput.value) <= 0) {
                             statusInput.value = 'Sold Out';
                             statusInput.classList.add('status-border-red');
@@ -871,6 +941,25 @@ $stmt->close();
 
         function addItem(e) {
             // Function no longer needed, handled by PHP completely
+        }
+
+        // Repopulate subcategory and technique dropdowns when category changes during edit
+        function updateEditSubAndTech(catSelect) {
+            const itemDiv = catSelect.closest('.inventory-item');
+            const subcatSelect = itemDiv.querySelector('.item-subcategory-input');
+            const techSelect   = itemDiv.querySelector('.item-technique-input');
+            const category     = catSelect.value;
+
+            const batikSubs  = ["Batik Textile", "Men's Wear", "Women's Wear", "Handcrafted Items", "Accessories"];
+            const batikTechs = ["Hand-drawn (Canting)", "Block Print (Cap)", "Screen Print"];
+            const woodSubs   = ["Furniture", "Home Decor", "Kitchenware", "Traditional Carving", "Souvenirs"];
+            const woodTechs  = ["Hand-Carved", "Lathe Turned", "Relief Carving", "Inlay Work"];
+
+            const subs  = category === 'Batik' ? batikSubs  : woodSubs;
+            const techs = category === 'Batik' ? batikTechs : woodTechs;
+
+            subcatSelect.innerHTML = subs.map(s  => `<option value="${s}">${s}</option>`).join('');
+            techSelect.innerHTML   = techs.map(t => `<option value="${t}">${t}</option>`).join('');
         }
 
         // PHP approval status passed to JS
