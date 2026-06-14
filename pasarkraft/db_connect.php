@@ -62,14 +62,14 @@ define('PK_API_KEY', pk_env('PK_API_KEY', 'pk_4R9q8mW7vT2xK5nH1sL6cQ3yB8dZ0eU'))
 define('PK_PYTHON_BIN', pk_env('PK_PYTHON_BIN', 'python'));
 
 // Gemini AI API Settings
-define('GEMINI_API_KEY', pk_env('GEMINI_API_KEY', 'YOUR API KEY'));
+define('GEMINI_API_KEY', pk_env('GEMINI_API_KEY', 'YOUR GEMINI API KEY'));
 
 // Gmail SMTP Mailer Settings
 define('PK_SMTP_HOST', pk_env('PK_SMTP_HOST', 'smtp.gmail.com'));
 define('PK_SMTP_PORT', intval(pk_env('PK_SMTP_PORT', 465)));
-define('PK_SMTP_USER', pk_env('PK_SMTP_USER', 'af03.af30@gmail.com'));
-define('PK_SMTP_PASS', pk_env('PK_SMTP_PASS', 'umay rpsa ajzt slia'));
-define('PK_SMTP_FROM', pk_env('PK_SMTP_FROM', 'af03.af30@gmail.com'));
+define('PK_SMTP_USER', pk_env('PK_SMTP_USER', 'nrldraft471@gmail.com'));
+define('PK_SMTP_PASS', pk_env('PK_SMTP_PASS', 'majx gnel pjhq voev'));
+define('PK_SMTP_FROM', pk_env('PK_SMTP_FROM', 'nrldraft471@gmail.com'));
 define('PK_SMTP_FROM_NAME', pk_env('PK_SMTP_FROM_NAME', 'PasarKraft'));
 
 // =========================================================================
