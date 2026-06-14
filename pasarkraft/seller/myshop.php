@@ -395,6 +395,7 @@ $stmt->close();
             justify-content: center;
             z-index: 2000;
             backdrop-filter: blur(5px);
+            padding: 1.5rem;
         }
 
         .modal-content {
@@ -404,6 +405,23 @@ $stmt->close();
             width: 100%;
             max-width: 500px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        /* Custom Scrollbar for Modal Content */
+        .modal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        .modal-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .modal-content::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+        .modal-content::-webkit-scrollbar-thumb:hover {
+            background: #aaa;
         }
 
         .modal-header {
