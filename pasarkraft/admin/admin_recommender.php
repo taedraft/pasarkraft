@@ -309,13 +309,14 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
             </div>
             <div class="btn-group">
                 <form method="POST" style="display: flex; gap: 10px;" id="aiPipelineForm">
-                    <button type="submit" name="action" value="train" class="btn-train" id="btnTrain">
-                        <i class="fas fa-cogs" id="btnTrainIcon"></i> Train AI Pipeline
+                    <input type="hidden" name="action" id="pipelineAction" value="">
+                    <button type="button" class="btn-train" id="btnTrain" onclick="submitAction('train')">
+                        <i class="fas fa-cogs"></i> Train AI Pipeline
                     </button>
-                    <button type="submit" name="action" value="seed_mock" class="btn-seed" title="Seed 4 buyers and interaction log metrics for immediate demonstration">
+                    <button type="button" class="btn-seed" onclick="submitAction('seed_mock')" title="Seed 4 buyers and interaction log metrics for immediate demonstration">
                         <i class="fas fa-seedling"></i> Seed Interaction Data
                     </button>
-                    <button type="submit" name="action" value="clear" class="btn-clear" onclick="return confirm('Clear recommendations cache and raw user interactions?');">
+                    <button type="button" class="btn-clear" onclick="if(confirm('Clear recommendations cache and raw user interactions?')) submitAction('clear')">
                         <i class="fas fa-trash-alt"></i> Clear Data
                     </button>
                 </form>
@@ -639,15 +640,24 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
     </footer>
 
     <script>
-        // Train button — disable + show spinner on click to prevent double-submit
-        document.getElementById('btnTrain').addEventListener('click', function() {
-            var btn = this;
-            btn.disabled = true;
-            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Training... (this may take a few seconds)';
-            btn.style.opacity = '0.7';
-            // Re-enable after 30s in case of network failure
-            setTimeout(function() { btn.disabled = false; btn.innerHTML = '<i class="fas fa-cogs"></i> Train AI Pipeline'; btn.style.opacity = '1'; }, 30000);
-        });
+        // Submit pipeline action via hidden input — avoids the browser dropping
+        // the button value when the button is disabled before form submit.
+        function submitAction(action) {
+            if (action === 'train') {
+                var btn = document.getElementById('btnTrain');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Training... (this may take a few seconds)';
+                btn.style.opacity = '0.7';
+                // Auto-reset after 60s in case of timeout/failure
+                setTimeout(function() {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-cogs"></i> Train AI Pipeline';
+                    btn.style.opacity = '1';
+                }, 60000);
+            }
+            document.getElementById('pipelineAction').value = action;
+            document.getElementById('aiPipelineForm').submit();
+        }
 
         // Flag: true once TF-IDF data has been fetched from the server
         let tfidfLoaded = false;
