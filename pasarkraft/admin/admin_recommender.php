@@ -5,8 +5,8 @@ require "../recommender.php";
 
 // Redirect if not admin
 if (!isset($_SESSION["user_id"]) || $_SESSION["role"] !== "admin") {
-    // header("Location: login_admin.php");
-    // skip exit for development convenience
+    header("Location: login_admin.php");
+    exit();
 }
 
 $recommender = new PasarKraftRecommender($conn);
@@ -21,6 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         try {
             $metrics = $recommender->generateAndCacheAllRecommendations();
             $_SESSION['training_metrics'] = $metrics;
+            $_SESSION['training_metrics']['trained_at'] = date('d M Y, H:i');
             $msg = "AI Recommender pipeline trained successfully! Recommendations updated for {$metrics['users_updated']} buyers.";
             $msg_type = "success";
         } catch (Exception $e) {
@@ -284,6 +285,20 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                 </div>
                 <div class="kpi-icon bg-purple"><i class="fas fa-database"></i></div>
             </div>
+
+            <div class="kpi-card">
+                <div class="kpi-info">
+                    <h4>Last Trained At</h4>
+                    <?php $trainedAt = $_SESSION['training_metrics']['trained_at'] ?? null; ?>
+                    <span style="font-size:1rem;"><?php echo $trainedAt ? htmlspecialchars($trainedAt) : '—'; ?></span>
+                    <?php if (!$trainedAt): ?>
+                        <small style="color:#94a3b8;font-size:0.7rem;">Never trained yet</small>
+                    <?php else: ?>
+                        <small style="color:#16a34a;font-size:0.7rem;">Recommendations are fresh</small>
+                    <?php endif; ?>
+                </div>
+                <div class="kpi-icon bg-green"><i class="fas fa-clock"></i></div>
+            </div>
         </div>
 
         <!-- Action Panel -->
@@ -293,9 +308,9 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                 <p style="margin: 0; color: #64748b; font-size: 0.85rem;">Run, clear, or seed the recommender mathematical model.</p>
             </div>
             <div class="btn-group">
-                <form method="POST" style="display: flex; gap: 10px;">
-                    <button type="submit" name="action" value="train" class="btn-train">
-                        <i class="fas fa-cogs"></i> Train AI Pipeline
+                <form method="POST" style="display: flex; gap: 10px;" id="aiPipelineForm">
+                    <button type="submit" name="action" value="train" class="btn-train" id="btnTrain">
+                        <i class="fas fa-cogs" id="btnTrainIcon"></i> Train AI Pipeline
                     </button>
                     <button type="submit" name="action" value="seed_mock" class="btn-seed" title="Seed 4 buyers and interaction log metrics for immediate demonstration">
                         <i class="fas fa-seedling"></i> Seed Interaction Data
@@ -346,6 +361,13 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                     The raw training data representing historical buyer interactions. Ratings are mapped: View = 1, Click = 2, Wishlist = 3, Accepted Deal = 5.
                 </p>
                 <div class="matrix-table-container">
+                    <?php if (empty($users) || empty($products)): ?>
+                        <div style="text-align:center; padding: 3rem 2rem; color:#94a3b8;">
+                            <i class="fas fa-table" style="font-size:2.5rem; display:block; margin-bottom:1rem; opacity:0.4;"></i>
+                            <h4 style="margin:0 0 8px; color:#64748b;">No data to display yet</h4>
+                            <p style="font-size:0.85rem; margin:0;">Add products and buyers, then click <strong>"Train AI Pipeline"</strong> to populate this matrix.</p>
+                        </div>
+                    <?php else: ?>
                     <table class="matrix-table">
                         <thead>
                             <tr>
@@ -374,6 +396,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                             <?php endif; ?>
                         </tbody>
                     </table>
+                    <?php endif; ?>
                 </div>
             </div>
             
@@ -616,6 +639,16 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
     </footer>
 
     <script>
+        // Train button — disable + show spinner on click to prevent double-submit
+        document.getElementById('btnTrain').addEventListener('click', function() {
+            var btn = this;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Training... (this may take a few seconds)';
+            btn.style.opacity = '0.7';
+            // Re-enable after 30s in case of network failure
+            setTimeout(function() { btn.disabled = false; btn.innerHTML = '<i class="fas fa-cogs"></i> Train AI Pipeline'; btn.style.opacity = '1'; }, 30000);
+        });
+
         // Flag: true once TF-IDF data has been fetched from the server
         let tfidfLoaded = false;
 
