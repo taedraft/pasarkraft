@@ -52,7 +52,10 @@ if ($appr_col_res) {
 $selected_subs = $_GET['subcategories'] ?? [];
 $selected_techs = $_GET['techniques'] ?? [];
 $max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 1000;
-$selected_color = $_GET['color'] ?? '';
+$selected_colors = $_GET['colors'] ?? [];
+if (empty($selected_colors) && !empty($_GET['color'])) {
+    $selected_colors = [$_GET['color']];
+}
 
 // Build dynamic WHERE clause
 $where_clauses = ["p.category = 'Batik'", "p.stock > 0", "p.price <= ?"];
@@ -81,28 +84,44 @@ if (!empty($selected_techs)) {
     }
 }
 
-if (!empty($selected_color)) {
-    $color_term = $selected_color;
-    if ($color_term === 'Maroon') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Red%' OR p.color LIKE '%Maroon%')";
-        $params[] = "%Maroon%";
-    } elseif ($color_term === 'Indigo Blue') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Blue%')";
-        $params[] = "%Indigo Blue%";
-    } elseif ($color_term === 'Earth Brown') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Brown%' OR p.color LIKE '%Wood%')";
-        $params[] = "%Earth Brown%";
-    } elseif ($color_term === 'Leaf Green') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Green%')";
-        $params[] = "%Leaf Green%";
-    } elseif ($color_term === 'Golden Yellow') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Yellow%')";
-        $params[] = "%Golden Yellow%";
-    } else {
-        $where_clauses[] = "p.color LIKE ?";
-        $params[] = "%" . $color_term . "%";
+if (!empty($selected_colors)) {
+    $color_conditions = [];
+    foreach ($selected_colors as $color_family) {
+        if ($color_family === 'Red' || $color_family === 'Maroon') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Red%' OR p.color LIKE '%Maroon%' OR p.color LIKE '%Terracotta%' OR p.color LIKE '%Pink%' OR p.color LIKE '%Crimson%')";
+            $params[] = "%Red%";
+        } elseif ($color_family === 'Blue' || $color_family === 'Indigo Blue') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Blue%' OR p.color LIKE '%Indigo%' OR p.color LIKE '%Turquoise%' OR p.color LIKE '%Cyan%')";
+            $params[] = "%Blue%";
+        } elseif ($color_family === 'Green' || $color_family === 'Leaf Green') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Green%' OR p.color LIKE '%Olive%' OR p.color LIKE '%Emerald%' OR p.color LIKE '%Mint%' OR p.color LIKE '%Teal%')";
+            $params[] = "%Green%";
+        } elseif ($color_family === 'Yellow' || $color_family === 'Golden Yellow') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Yellow%' OR p.color LIKE '%Golden%' OR p.color LIKE '%Orange%' OR p.color LIKE '%Amber%')";
+            $params[] = "%Yellow%";
+        } elseif ($color_family === 'Brown' || $color_family === 'Earth Brown') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Brown%' OR p.color LIKE '%Wood%' OR p.color LIKE '%Earth%' OR p.color LIKE '%Coffee%')";
+            $params[] = "%Brown%";
+        } elseif ($color_family === 'Black') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Black%' OR p.color LIKE '%Charcoal%' OR p.color LIKE '%Dark%')";
+            $params[] = "%Black%";
+        } elseif ($color_family === 'White') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%White%' OR p.color LIKE '%Cream%' OR p.color LIKE '%Beige%' OR p.color LIKE '%Ivory%' OR p.color LIKE '%Light%')";
+            $params[] = "%White%";
+        } elseif ($color_family === 'Multi-color') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Multi%' OR p.color LIKE '%Rainbow%' OR p.color LIKE '%Pattern%' OR p.color LIKE '%Colorful%')";
+            $params[] = "%Multi%";
+        } else {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE ?)";
+            $params[] = "%" . $color_family . "%";
+            $params[] = "%" . str_replace(" ", "%", $color_family) . "%";
+            $types .= "s";
+        }
+        $types .= "s";
     }
-    $types .= "s";
+    if (!empty($color_conditions)) {
+        $where_clauses[] = "(" . implode(' OR ', $color_conditions) . ")";
+    }
 }
 
 $where_sql = implode(' AND ', $where_clauses);
@@ -144,6 +163,19 @@ $stmt->close();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .color-swatch.white {
+            background: #ffffff !important;
+            border: 2px solid #ddd !important;
+        }
+        .color-swatch.multi {
+            background: linear-gradient(45deg, #f1c40f, #e74c3c, #9b59b6, #3498db, #2ecc71) !important;
+        }
+        .color-swatch.selected {
+            transform: scale(1.15);
+            box-shadow: 0 0 0 3px var(--accent-color, #2980b9) !important;
+        }
+    </style>
 </head>
 
 <body>
@@ -267,13 +299,10 @@ $stmt->close();
     <!-- Main Content Area -->
     <div class="collection-layout">
 
-        <!-- Sidebar Filter -->
         <aside class="collection-sidebar">
             <form id="filterForm" method="GET" action="">
                 <!-- Keep sort parameter if set -->
                 <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
-                <!-- Hidden input for selected color -->
-                <input type="hidden" name="color" id="selectedColor" value="<?php echo htmlspecialchars($selected_color); ?>">
 
                 <div class="filter-group">
                     <h3>Category</h3>
@@ -301,20 +330,26 @@ $stmt->close();
 
                 <div class="filter-group">
                     <h3>Color</h3>
-                    <div class="sidebar-color-options">
+                    <div class="sidebar-color-options" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <?php
                         $colors_list = [
-                            "blue" => "Indigo Blue",
-                            "red" => "Maroon",
-                            "brown" => "Earth Brown",
+                            "blue" => "Blue",
+                            "red" => "Red",
+                            "brown" => "Brown",
                             "black" => "Black",
-                            "green" => "Leaf Green",
-                            "yellow" => "Golden Yellow"
+                            "green" => "Green",
+                            "yellow" => "Yellow",
+                            "white" => "White",
+                            "multi" => "Multi-color"
                         ];
                         foreach ($colors_list as $class => $title):
-                            $selected_class = ($selected_color === $title) ? 'selected' : '';
+                            $is_selected = in_array($title, $selected_colors);
+                            $selected_class = $is_selected ? 'selected' : '';
                         ?>
-                            <span class="color-swatch <?php echo $class; ?> <?php echo $selected_class; ?>" title="<?php echo htmlspecialchars($title); ?>" onclick="selectColor('<?php echo htmlspecialchars($title); ?>')"></span>
+                            <label style="cursor: pointer; margin: 0; padding: 0; display: inline-block;" title="<?php echo htmlspecialchars($title); ?>">
+                                <input type="checkbox" name="colors[]" value="<?php echo htmlspecialchars($title); ?>" <?php echo $is_selected ? 'checked' : ''; ?> style="display: none;" onchange="this.form.submit()">
+                                <span class="color-swatch <?php echo $class; ?> <?php echo $selected_class; ?>"></span>
+                            </label>
                         <?php endforeach; ?>
                     </div>
                 </div>

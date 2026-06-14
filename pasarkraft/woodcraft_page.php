@@ -52,7 +52,10 @@ if ($appr_col_res) {
 $selected_subs = $_GET['subcategories'] ?? [];
 $selected_techs = $_GET['techniques'] ?? [];
 $max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 2000;
-$selected_color = $_GET['color'] ?? '';
+$selected_colors = $_GET['colors'] ?? [];
+if (empty($selected_colors) && !empty($_GET['color'])) {
+    $selected_colors = [$_GET['color']];
+}
 
 // Build dynamic WHERE clause
 $where_clauses = ["p.category = 'Woodcraft'", "p.stock > 0", "p.price <= ?"];
@@ -81,28 +84,35 @@ if (!empty($selected_techs)) {
     }
 }
 
-if (!empty($selected_color)) {
-    $color_term = $selected_color;
-    if ($color_term === 'Dark Teak') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Teak%' OR p.color LIKE '%Brown%' OR p.color LIKE '%Mahogany%')";
-        $params[] = "%Dark Teak%";
-    } elseif ($color_term === 'Medium Oak') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Oak%' OR p.color LIKE '%Brown%')";
-        $params[] = "%Medium Oak%";
-    } elseif ($color_term === 'Light Pine') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Pine%' OR p.color LIKE '%Light%')";
-        $params[] = "%Light Pine%";
-    } elseif ($color_term === 'Ebony') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Ebony%' OR p.color LIKE '%Black%')";
-        $params[] = "%Ebony%";
-    } elseif ($color_term === 'Driftwood') {
-        $where_clauses[] = "(p.color LIKE ? OR p.color LIKE '%Driftwood%' OR p.color LIKE '%Grey%' OR p.color LIKE '%Gray%')";
-        $params[] = "%Driftwood%";
-    } else {
-        $where_clauses[] = "p.color LIKE ?";
-        $params[] = "%" . $color_term . "%";
+if (!empty($selected_colors)) {
+    $color_conditions = [];
+    foreach ($selected_colors as $color_family) {
+        if ($color_family === 'Teak / Brown' || $color_family === 'Dark Teak' || $color_family === 'Medium Oak') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Teak%' OR p.color LIKE '%Oak%' OR p.color LIKE '%Brown%' OR p.color LIKE '%Walnut%' OR p.color LIKE '%Natural%')";
+            $params[] = "%Teak%";
+        } elseif ($color_family === 'Mahogany / Red Tone') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Mahogany%' OR p.color LIKE '%Red%' OR p.color LIKE '%Cherry%' OR p.color LIKE '%Rosewood%')";
+            $params[] = "%Mahogany%";
+        } elseif ($color_family === 'Pine / Light Tone' || $color_family === 'Light Pine') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Pine%' OR p.color LIKE '%Light%' OR p.color LIKE '%Maple%' OR p.color LIKE '%Birch%' OR p.color LIKE '%White%' OR p.color LIKE '%Cream%')";
+            $params[] = "%Pine%";
+        } elseif ($color_family === 'Ebony / Black' || $color_family === 'Ebony') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Ebony%' OR p.color LIKE '%Black%' OR p.color LIKE '%Charcoal%' OR p.color LIKE '%Dark%')";
+            $params[] = "%Ebony%";
+        } elseif ($color_family === 'Driftwood / Grey' || $color_family === 'Driftwood') {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE '%Driftwood%' OR p.color LIKE '%Grey%' OR p.color LIKE '%Gray%' OR p.color LIKE '%Ash%')";
+            $params[] = "%Driftwood%";
+        } else {
+            $color_conditions[] = "(p.color LIKE ? OR p.color LIKE ?)";
+            $params[] = "%" . $color_family . "%";
+            $params[] = "%" . str_replace(" ", "%", $color_family) . "%";
+            $types .= "s";
+        }
+        $types .= "s";
     }
-    $types .= "s";
+    if (!empty($color_conditions)) {
+        $where_clauses[] = "(" . implode(' OR ', $color_conditions) . ")";
+    }
 }
 
 $where_sql = implode(' AND ', $where_clauses);
@@ -144,6 +154,12 @@ $stmt->close();
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="styles.css">
+    <style>
+        .color-swatch.selected {
+            transform: scale(1.15);
+            box-shadow: 0 0 0 3px #8d6e63 !important;
+        }
+    </style>
 </head>
 
 <body class="woodcraft-theme">
@@ -250,8 +266,6 @@ $stmt->close();
             <form id="filterForm" method="GET" action="">
                 <!-- Keep sort parameter if set -->
                 <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
-                <!-- Hidden input for selected color -->
-                <input type="hidden" name="color" id="selectedColor" value="<?php echo htmlspecialchars($selected_color); ?>">
 
                 <div class="filter-group">
                     <h3>Category</h3>
@@ -279,19 +293,25 @@ $stmt->close();
 
                 <div class="filter-group">
                     <h3>Wood Tone</h3>
-                    <div class="sidebar-color-options">
+                    <div class="sidebar-color-options" style="display:flex; gap:8px; flex-wrap:wrap;">
                         <?php
                         $colors_list = [
-                            "#5d4037" => "Dark Teak",
-                            "#8d6e63" => "Medium Oak",
-                            "#d7ccc8" => "Light Pine",
-                            "#3e2723" => "Ebony",
-                            "#a1887f" => "Driftwood"
+                            "brown" => ["Teak / Brown", "#8d6e63"],
+                            "mahogany" => ["Mahogany / Red Tone", "#5d4037"],
+                            "pine" => ["Pine / Light Tone", "#d7ccc8"],
+                            "ebony" => ["Ebony / Black", "#3e2723"],
+                            "driftwood" => ["Driftwood / Grey", "#a1887f"]
                         ];
-                        foreach ($colors_list as $hex => $title):
-                            $selected_class = ($selected_color === $title) ? 'selected' : '';
+                        foreach ($colors_list as $class => $info):
+                            $title = $info[0];
+                            $hex = $info[1];
+                            $is_selected = in_array($title, $selected_colors);
+                            $selected_class = $is_selected ? 'selected' : '';
                         ?>
-                            <span class="color-swatch <?php echo $selected_class; ?>" style="background: <?php echo $hex; ?>;" title="<?php echo htmlspecialchars($title); ?>" onclick="selectColor('<?php echo htmlspecialchars($title); ?>')"></span>
+                            <label style="cursor: pointer; margin: 0; padding: 0; display: inline-block;" title="<?php echo htmlspecialchars($title); ?>">
+                                <input type="checkbox" name="colors[]" value="<?php echo htmlspecialchars($title); ?>" <?php echo $is_selected ? 'checked' : ''; ?> style="display: none;" onchange="this.form.submit()">
+                                <span class="color-swatch <?php echo $selected_class; ?>" style="background: <?php echo $hex; ?>;"></span>
+                            </label>
                         <?php endforeach; ?>
                     </div>
                 </div>
