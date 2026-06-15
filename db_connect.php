@@ -62,7 +62,7 @@ define('PK_API_KEY', pk_env('PK_API_KEY', 'pk_4R9q8mW7vT2xK5nH1sL6cQ3yB8dZ0eU'))
 define('PK_PYTHON_BIN', pk_env('PK_PYTHON_BIN', 'python'));
 
 // Gemini AI API Settings
-define('GEMINI_API_KEY', pk_env('GEMINI_API_KEY', 'YOUR-GEMINI-API-KEY'));
+define('GEMINI_API_KEY', pk_env('GEMINI_API_KEY', 'YOUR-GEMINI-API-KEY-HERE'));
 
 // Gmail SMTP Mailer Settings
 define('PK_SMTP_HOST', pk_env('PK_SMTP_HOST', 'smtp.gmail.com'));
