@@ -295,7 +295,7 @@ if (empty($recommended_products)) {
                 <a href="batik_page.php">Batik</a>
                 <a href="woodcraft_page.php">Woodcraft</a>
                 <a href="homepage.php#about">About</a>
-                <a href="buyer/chat_history.php">Chat history
+                <a href="buyer/inquiry_messages.php">Chat history
                     <?php if (isset($unread_count) && $unread_count > 0)
                         echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?>
                 </a>
@@ -364,7 +364,7 @@ if (empty($recommended_products)) {
                             <span class="product-price">RM
                                 <?php echo number_format($item['price'], 2); ?>
                             </span>
-                            <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>"
+                            <a href="buyer/inquiry_messages.php?seller_id=<?php echo urlencode($item['seller_id']); ?>"
                                 class="btn-chat">Chat with Seller</a>
                         </div>
                     </article>
@@ -428,7 +428,7 @@ if (empty($recommended_products)) {
                                 <span class="product-price">RM
                                     <?php echo number_format($prod['price'], 2); ?>
                                 </span>
-                                <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($prod['seller_id']); ?>&product_id=<?php echo $prod['id']; ?>"
+                                <a href="buyer/inquiry_messages.php?seller_id=<?php echo urlencode($prod['seller_id']); ?>&product_id=<?php echo $prod['id']; ?>"
                                     class="btn-chat">
                                     <i class="fas fa-comment-dots"></i> Chat with Seller
                                 </a>

@@ -307,8 +307,8 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                 <a href="#about">About</a>
                 <?php
                 $chat_href = (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer')
-                    ? 'buyer/chat_history.php'
-                    : 'buyer/login_buyer.php?from=chat';
+                    ? 'buyer/inquiry_messages.php'
+                    : 'buyer/login_buyer.php?from=inquiries';
                 ?>
                 <a href="<?php echo $chat_href; ?>">Chat History
                     <?php if (isset($unread_count) && $unread_count > 0)
@@ -404,7 +404,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                             </div>
                             <h3 class="product-title"><?php echo htmlspecialchars($prod['title']); ?></h3>
                             <span class="product-price">RM <?php echo number_format($prod['price'], 2); ?></span>
-                            <a href="<?php echo $is_buyer ? 'buyer/chat_history.php?chat_with='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=chat'; ?>"
+                            <a href="<?php echo $is_buyer ? 'buyer/inquiry_messages.php?seller_id='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=inquiries'; ?>"
                                 class="btn-chat" data-product-id="<?php echo $prod['id']; ?>">
                                 <i class="fas fa-comment-dots"></i> Chat with Seller
                             </a>
@@ -460,7 +460,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                             </div>
                             <h3 class="product-title"><?php echo htmlspecialchars($prod['title']); ?></h3>
                             <span class="product-price">RM <?php echo number_format($prod['price'], 2); ?></span>
-                            <a href="<?php echo $is_buyer ? 'buyer/chat_history.php?chat_with='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=chat'; ?>"
+                            <a href="<?php echo $is_buyer ? 'buyer/inquiry_messages.php?seller_id='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=inquiries'; ?>"
                                 class="btn-chat" data-product-id="<?php echo $prod['id']; ?>">
                                 <i class="fas fa-comment-dots"></i> Chat with Seller
                             </a>
@@ -784,7 +784,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
             formData.append('history', JSON.stringify(history));
 
             // Call backend API matching traditional form formatting
-            fetch('api/chatbot.php', {
+            fetch('api/ai_guide.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: formData.toString()

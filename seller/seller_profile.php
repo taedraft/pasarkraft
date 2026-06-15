@@ -295,7 +295,7 @@ $profile_incomplete = $approval_status === 'approved'
             <div class="nav-links">
                 <a href="dashboard_seller.php">Dashboard</a>
                 <a href="myshop.php">Products</a>
-                <a href="chat_history_seller.php">Customer Chats
+                <a href="customer_inquiries.php">Customer Chats
                     <?php if (isset($unread_count) && $unread_count > 0)
                         echo '<span style="background:red;color:white;border-radius:50%;padding:2px 6px;font-size:0.75rem;margin-left:5px;">' . $unread_count . '</span>'; ?>
                 </a>

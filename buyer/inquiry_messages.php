@@ -26,9 +26,9 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'buyer') {
 $buyer_id = $_SESSION['user_id'];
 $active_inquiry_id = isset($_GET['inquiry_id']) ? intval($_GET['inquiry_id']) : 0;
 
-if (isset($_GET['product_id']) && isset($_GET['chat_with'])) {
+if (isset($_GET['product_id']) && isset($_GET['seller_id'])) {
     $p_id = intval($_GET['product_id']);
-    $s_id = intval($_GET['chat_with']);
+    $s_id = intval($_GET['seller_id']);
     
     // Log click interaction (value = 2.0) if not already logged
     $click_chk = $conn->prepare("SELECT id FROM user_interactions WHERE user_id = ? AND product_id = ? AND interaction_type = 'click'");
@@ -49,7 +49,7 @@ if (isset($_GET['product_id']) && isset($_GET['chat_with'])) {
     
     if ($chk_row = $chk_res->fetch_assoc()) {
         $active_inquiry_id = $chk_row['id'];
-        header("Location: chat_history.php?inquiry_id=" . $active_inquiry_id);
+        header("Location: inquiry_messages.php?inquiry_id=" . $active_inquiry_id);
         exit();
     } else {
         $ins = $conn->prepare("INSERT INTO inquiries (buyer_id, seller_id, product_id, status) VALUES (?, ?, ?, 'In Discussion')");
@@ -57,7 +57,7 @@ if (isset($_GET['product_id']) && isset($_GET['chat_with'])) {
         $ins->execute();
         $active_inquiry_id = $conn->insert_id;
         
-        header("Location: chat_history.php?inquiry_id=" . $active_inquiry_id);
+        header("Location: inquiry_messages.php?inquiry_id=" . $active_inquiry_id);
         exit();
     }
 }
@@ -98,7 +98,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
             }
         }
     }
-    header("Location: chat_history.php?inquiry_id=$active_inquiry_id");
+    header("Location: inquiry_messages.php?inquiry_id=$active_inquiry_id");
     exit();
 }
 
@@ -210,7 +210,7 @@ if ($active_inquiry_id > 0) {
             <div class="nav-links">
                 <a href="../batik_page.php">Batik</a>
                 <a href="../woodcraft_page.php">Woodcraft</a>
-                <a href="chat_history.php" class="active-link" style="color: var(--accent-color);">Chat History <span id="pkUnreadBadge" style="background:red;color:white;border-radius:50%;padding:2px 6px;font-size:0.75rem;margin-left:5px;<?php echo ($unread_count > 0) ? '' : 'display:none;'; ?>"><?php echo $unread_count; ?></span></a>
+                <a href="inquiry_messages.php" class="active-link" style="color: var(--accent-color);">Chat History <span id="pkUnreadBadge" style="background:red;color:white;border-radius:50%;padding:2px 6px;font-size:0.75rem;margin-left:5px;<?php echo ($unread_count > 0) ? '' : 'display:none;'; ?>"><?php echo $unread_count; ?></span></a>
                 <a href="../logout.php" class="nav-login" onclick="return confirm('Are you sure you want to log out?');">Logout</a>
                 <a href="../wishlist_page.php" class="wishlist-icon">
                     <i class="far fa-heart"></i>
@@ -233,7 +233,7 @@ if ($active_inquiry_id > 0) {
                     <p style="padding: 20px; color: #999; text-align: center;">No active inquiries yet.</p>
                 <?php else: ?>
                     <?php foreach ($inquiries as $inq): ?>
-                        <a href="chat_history.php?inquiry_id=<?php echo $inq['id']; ?>" class="contact-item <?php echo ($active_inquiry_id == $inq['id']) ? 'active' : ''; ?>">
+                        <a href="inquiry_messages.php?inquiry_id=<?php echo $inq['id']; ?>" class="contact-item <?php echo ($active_inquiry_id == $inq['id']) ? 'active' : ''; ?>">
                             <?php $statusClassFormat = str_replace(' ', '-', $inq['status']); ?>
                             <div class="contact-avatar" style="background:#e67e22;"><?php echo strtoupper(substr($inq['seller_name'], 0, 1)); ?></div>
                             <div class="contact-info">
@@ -288,7 +288,7 @@ if ($active_inquiry_id > 0) {
                 </div>
 
                 <div class="chat-input-area">
-                    <form class="chat-form" method="POST" action="chat_history.php?inquiry_id=<?php echo $active_inquiry_id; ?>" onsubmit="return validateChatForm(this)">
+                    <form class="chat-form" method="POST" action="inquiry_messages.php?inquiry_id=<?php echo $active_inquiry_id; ?>" onsubmit="return validateChatForm(this)">
                         <input type="text" name="message" class="chat-input" placeholder="Type your message here..." autocomplete="off" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
                         <input type="number" step="0.01" min="0.01" name="offer_amount" class="offer-input" placeholder="Offer RM" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
                         <button type="submit" class="btn-send" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>><i class="fas fa-paper-plane"></i></button>

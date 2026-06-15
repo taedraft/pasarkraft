@@ -269,7 +269,7 @@ $stmt->close();
                 <a href="batik_page.php" class="active-link" style="color: #2980b9;">Batik</a>
                 <a href="woodcraft_page.php">Woodcraft</a>
                 <a href="homepage.php#about">About</a>
-                <a href="buyer/chat_history.php">Chat history <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
+                <a href="buyer/inquiry_messages.php">Chat history <?php if(isset($unread_count) && $unread_count > 0) echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">'.$unread_count.'</span>'; ?></a>
                 <?php if (isset($_SESSION['user_id'])): ?>
                     <a href="logout.php" class="nav-login"
                         onclick="return confirm('Are you sure you want to log out?');">Logout</a>
@@ -417,7 +417,7 @@ $stmt->close();
                                 </div>
                                 <h3 class="product-title"><?php echo htmlspecialchars($item['title']); ?></h3>
                                 <span class="product-price">RM <?php echo number_format($item['price'], 2); ?></span>
-                                <a href="buyer/chat_history.php?chat_with=<?php echo urlencode($item['seller_id']); ?>&product_id=<?php echo $item['id']; ?>"
+                                <a href="buyer/inquiry_messages.php?seller_id=<?php echo urlencode($item['seller_id']); ?>&product_id=<?php echo $item['id']; ?>"
                                     class="btn-chat" data-product-id="<?php echo $item['id']; ?>">Chat with Seller</a>
                             </div>
                         </article>

@@ -453,7 +453,7 @@ $stmt_top_wish->close();
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Dashboard</a>
                 <a href="myshop.php" <?php if (basename($_SERVER['PHP_SELF']) == 'myshop.php')
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Products</a>
-                <a href="chat_history_seller.php" <?php if (basename($_SERVER['PHP_SELF']) == 'chat_history_seller.php')
+                <a href="customer_inquiries.php" <?php if (basename($_SERVER['PHP_SELF']) == 'customer_inquiries.php')
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Customer Chats
                     <?php if (isset($unread_count) && $unread_count > 0)
                         echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?></a>
@@ -667,7 +667,7 @@ $stmt_top_wish->close();
         <div class="orders-section">
             <div class="section-header">
                 <h2>Recent Inquiries & Deals</h2>
-                <a href="chat_history_seller.php" style="color:var(--accent-color); font-size:0.9rem;">View
+                <a href="customer_inquiries.php" style="color:var(--accent-color); font-size:0.9rem;">View
                     Messages</a>
             </div>
 
@@ -724,7 +724,7 @@ $stmt_top_wish->close();
                                 </td>
                                 <td>
                                     <button class="btn-view"
-                                        onclick="window.location.href='chat_history_seller.php?inquiry_id=<?php echo $inq['id']; ?>'">
+                                        onclick="window.location.href='customer_inquiries.php?inquiry_id=<?php echo $inq['id']; ?>'">
                                         <?php echo ($inq['status'] === 'In Discussion') ? 'Reply' : 'Details'; ?>
                                     </button>
                                 </td>
