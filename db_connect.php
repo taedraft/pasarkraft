@@ -51,10 +51,10 @@ function pk_env($key, $default = '')
 // =========================================================================
 
 // Database Settings
-$servername = pk_env('PK_DB_HOST', 'sql204.infinityfree.com');
-$username = pk_env('PK_DB_USER', 'if0_42022884');
-$password = pk_env('PK_DB_PASSWORD', 'PWp1pzwdti3jW');
-$dbname = pk_env('PK_DB_NAME', 'if0_42022884_pasarkraft_db');
+$servername = pk_env('PK_DB_HOST', 'sql201.infinityfree.com');
+$username = pk_env('PK_DB_USER', 'if0_42164071');
+$password = pk_env('PK_DB_PASSWORD', 'vfcXqcWZnBmHWBW');
+$dbname = pk_env('PK_DB_NAME', 'if0_42164071_pasarkraft_db');
 
 // Recommender API Settings
 define('PK_API_BASE', pk_env('PK_API_BASE', ''));
