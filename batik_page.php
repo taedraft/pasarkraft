@@ -51,7 +51,7 @@ if ($appr_col_res && $appr_col_res->num_rows > 0) {
 // Filter parameters from URL
 $selected_subs = $_GET['subcategories'] ?? [];
 $selected_techs = $_GET['techniques'] ?? [];
-$max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 1000;
+$max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 10000;
 $selected_colors = $_GET['colors'] ?? [];
 if (empty($selected_colors) && !empty($_GET['color'])) {
     $selected_colors = [$_GET['color']];
@@ -320,7 +320,7 @@ $stmt->close();
                 <div class="filter-group">
                     <h3>Price Range</h3>
                     <div class="price-slider-container">
-                        <input type="range" name="max_price" class="price-range" min="0" max="1000" value="<?php echo htmlspecialchars($max_price); ?>" onchange="this.form.submit()" oninput="document.getElementById('priceVal').innerText = 'RM ' + this.value">
+                        <input type="range" name="max_price" class="price-range" min="0" max="10000" value="<?php echo htmlspecialchars($max_price); ?>" onchange="this.form.submit()" oninput="document.getElementById('priceVal').innerText = 'RM ' + this.value">
                         <div class="price-values">
                             <span>RM 0</span>
                             <span id="priceVal">RM <?php echo htmlspecialchars($max_price); ?></span>
@@ -402,10 +402,19 @@ $stmt->close();
                             $wishlist_class = $is_wished ? 'active' : '';
                             $heart_icon = $is_wished ? 'fas fa-heart' : 'far fa-heart';
                             $heart_color = $is_wished ? 'color: #e74c3c;' : '';
+
+                            $img_raw = $item['image_path'] ?? '';
+                            if (empty($img_raw)) {
+                                $img_src = 'png/batik_shirt.png';
+                            } elseif (strpos($img_raw, '/') === false) {
+                                $img_src = 'png/' . htmlspecialchars($img_raw);
+                            } else {
+                                $img_src = htmlspecialchars($img_raw);
+                            }
                         ?>
                         <article class="product-card" data-product-id="<?php echo $item['id']; ?>">
                             <div class="product-image">
-                                <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'batik_shirt.png'); ?>"
+                                <img src="<?php echo $img_src; ?>"
                                     alt="<?php echo htmlspecialchars($item['title']); ?>">
                             </div>
                             <div class="product-info">
