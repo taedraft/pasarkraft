@@ -75,7 +75,18 @@
             <div class="login-content">
                 <h2>Admin Panel</h2>
                 <p>Authorized personnel only.</p>
+                
+                <?php if (isset($_SESSION['login_error'])): ?>
+                    <div
+                        style="background-color: #fee2e2; border-left: 4px solid #ef4444; color: #b91c1c; padding: 12px 16px; margin-bottom: 1.5rem; font-size: 0.9rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-exclamation-circle"></i>
+                        <span><?php echo htmlspecialchars($_SESSION['login_error']); ?></span>
+                    </div>
+                    <?php unset($_SESSION['login_error']); ?>
+                <?php endif; ?>
+
                 <form class="login-form" action="../login.php" method="POST">
+                    <input type="hidden" name="expected_role" value="admin">
                     <div class="form-group">
                         <label for="email">Admin ID</label>
                         <input type="text" id="email" name="email" placeholder="Enter your admin ID (username)" required>

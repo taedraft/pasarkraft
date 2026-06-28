@@ -84,6 +84,7 @@
                 <?php endif; ?>
 
                 <form class="login-form" action="../login.php" method="POST">
+                    <input type="hidden" name="expected_role" value="seller">
                     <div class="form-group">
                         <label for="email">Seller Email</label>
                         <input type="email" id="email" name="email" placeholder="Enter your seller email" required>

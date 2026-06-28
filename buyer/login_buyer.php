@@ -113,6 +113,7 @@
                 <?php endif; ?>
 
                 <form class="login-form" action="../login.php" method="POST">
+                    <input type="hidden" name="expected_role" value="buyer">
                     <div class="form-group">
                         <label for="email">Email Address</label>
                         <input type="email" id="email" name="email" placeholder="Enter your email" required>

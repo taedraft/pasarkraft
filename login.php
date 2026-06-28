@@ -26,6 +26,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $user = $result->fetch_assoc();
         if (password_verify($password, $user['password'])) {
 
+            // Check if the user's role matches the expected portal role
+            $expected_role = $_POST['expected_role'] ?? '';
+            if (!empty($expected_role) && $user['role'] !== $expected_role) {
+                $portalName = ($expected_role === 'admin') ? 'Admin' : ucfirst($expected_role) . 's';
+                $_SESSION['login_error'] = "Access denied. This login portal is only for " . $portalName . ".";
+                header("Location: " . $_SERVER['HTTP_REFERER']);
+                exit();
+            }
+
             // Block suspended accounts
             if ($user['status'] === 'suspended') {
                 $_SESSION['login_error'] = "Your account has been suspended. Please contact admin at admin@pasarkraft.com.";
