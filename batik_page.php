@@ -48,6 +48,15 @@ if ($appr_col_res && $appr_col_res->num_rows > 0) {
     $has_approval_col = true;
 }
 
+// Filter parameters from URL
+$selected_subs = $_GET['subcategories'] ?? [];
+$selected_techs = $_GET['techniques'] ?? [];
+$max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 1000;
+$selected_colors = $_GET['colors'] ?? [];
+if (empty($selected_colors) && !empty($_GET['color'])) {
+    $selected_colors = [$_GET['color']];
+}
+
 // Build dynamic WHERE clause
 $where_clauses = ["p.category = 'Batik'", "p.stock > 0", "p.price <= ?"];
 $params = [$max_price];
