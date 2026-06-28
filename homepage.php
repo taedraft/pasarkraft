@@ -43,17 +43,17 @@ $where = [];
 $params = [];
 $types = '';
 
-// Check if approval_status column exists (defensive — may not be in DB yet)
+// Check if approval_status column exists using SHOW COLUMNS (works on InfinityFree)
 $has_approval_col = false;
-$appr_col_res = $conn->query("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'artisans' AND COLUMN_NAME = 'approval_status'");
-if ($appr_col_res) {
-    $has_approval_col = ($appr_col_res->fetch_assoc()['c'] ?? 0) > 0;
+$appr_col_res = $conn->query("SHOW COLUMNS FROM artisans LIKE 'approval_status'");
+if ($appr_col_res && $appr_col_res->num_rows > 0) {
+    $has_approval_col = true;
 }
 
 // Base filters always applied: in-stock only + approved sellers only
 $base_where = ["p.stock > 0"];
 if ($has_approval_col) {
-    $base_where[] = "COALESCE(a.approval_status, 'pending') = 'approved'";
+    $base_where[] = "a.approval_status = 'approved'";
 }
 
 if ($filter_query !== '') {

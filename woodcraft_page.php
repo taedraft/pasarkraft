@@ -41,20 +41,11 @@ if ($sort === 'price_low') {
     $order_sql = "ORDER BY p.created_at DESC";
 }
 
-// Check if approval_status column exists (defensive)
+// Check if approval_status column exists using SHOW COLUMNS (works on InfinityFree)
 $has_approval_col = false;
-$appr_col_res = $conn->query("SELECT COUNT(*) AS c FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'artisans' AND COLUMN_NAME = 'approval_status'");
-if ($appr_col_res) {
-    $has_approval_col = ($appr_col_res->fetch_assoc()['c'] ?? 0) > 0;
-}
-
-// Filter parameters from URL
-$selected_subs = $_GET['subcategories'] ?? [];
-$selected_techs = $_GET['techniques'] ?? [];
-$max_price = isset($_GET['max_price']) ? floatval($_GET['max_price']) : 2000;
-$selected_colors = $_GET['colors'] ?? [];
-if (empty($selected_colors) && !empty($_GET['color'])) {
-    $selected_colors = [$_GET['color']];
+$appr_col_res = $conn->query("SHOW COLUMNS FROM artisans LIKE 'approval_status'");
+if ($appr_col_res && $appr_col_res->num_rows > 0) {
+    $has_approval_col = true;
 }
 
 // Build dynamic WHERE clause
@@ -63,7 +54,7 @@ $params = [$max_price];
 $types = "d";
 
 if ($has_approval_col) {
-    $where_clauses[] = "COALESCE(a.approval_status, 'pending') = 'approved'";
+    $where_clauses[] = "a.approval_status = 'approved'";
 }
 
 if (!empty($selected_subs)) {
