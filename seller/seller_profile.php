@@ -74,8 +74,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $has_error = false;
 
-    // Password change logic
-    if (!empty($current_pass) || !empty($new_pass) || !empty($confirm_pass)) {
+    // Password change logic — only trigger if the user intends to change their password by filling in a new password
+    if (!empty($new_pass) || !empty($confirm_pass)) {
         if (empty($current_pass) || empty($new_pass) || empty($confirm_pass)) {
             $_SESSION['profile_error'] = "All password fields are required to change your password.";
             $has_error = true;
@@ -92,7 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res = $stmt->get_result();
             $user_data = $res->fetch_assoc();
             $stmt->close();
-
+ 
             if ($user_data && password_verify($current_pass, $user_data['password'])) {
                 $hashed_new = password_hash($new_pass, PASSWORD_BCRYPT);
                 $stmt = $conn->prepare("UPDATE users SET password = ? WHERE id = ?");
