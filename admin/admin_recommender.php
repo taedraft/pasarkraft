@@ -189,9 +189,9 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
         .card-panel { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02); }
         .card-panel h3 { font-size: 1.25rem; color: #1e293b; margin-top: 0; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.75rem; }
         
-        .matrix-table-container { overflow-x: auto; margin-bottom: 1.5rem; }
-        .matrix-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        .matrix-table th, .matrix-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; }
+        .matrix-table-container { overflow-x: auto; margin-bottom: 1.5rem; max-width: 100%; -webkit-overflow-scrolling: touch; }
+        .matrix-table { width: auto; min-width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .matrix-table th, .matrix-table td { padding: 10px; border: 1px solid #e2e8f0; text-align: center; white-space: nowrap; }
         .matrix-table th { background: #f8fafc; color: #475569; font-weight: 600; }
         .matrix-cell-active { background: #dbeafe; color: #1e40af; font-weight: bold; }
         .matrix-cell-empty { color: #cbd5e1; }
