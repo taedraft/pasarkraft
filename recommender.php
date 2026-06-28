@@ -505,6 +505,19 @@ class PasarKraftRecommender {
         // Allow up to 2 minutes — InfinityFree default is 30s which can kill training mid-run
         @set_time_limit(120);
 
+        // 0. Synchronize any manual wishlist additions to the user_interactions table
+        $this->conn->query("
+            INSERT INTO user_interactions (user_id, product_id, interaction_type, interaction_value)
+            SELECT buyer_id, product_id, 'wishlist', 3.0
+            FROM wishlist w
+            WHERE NOT EXISTS (
+                SELECT 1 FROM user_interactions ui 
+                WHERE ui.user_id = w.buyer_id 
+                  AND ui.product_id = w.product_id 
+                  AND ui.interaction_type = 'wishlist'
+            )
+        ");
+
         // 1. Train the pipelines
         $this->trainTfidf();
         $this->trainSVD();
