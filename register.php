@@ -81,8 +81,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $new_user_id = $conn->insert_id;
 
         if ($role == 'seller') {
-            // Insert into artisans table
-            $art_stmt = $conn->prepare("INSERT INTO artisans (user_id, shopname, ssm, phone) VALUES (?, ?, ?, ?)");
+            // Insert into artisans table — explicitly set pending so admin must approve before seller can add products
+            $art_stmt = $conn->prepare("INSERT INTO artisans (user_id, shopname, ssm, phone, approval_status) VALUES (?, ?, ?, ?, 'pending')");
             $art_stmt->bind_param("isss", $new_user_id, $shopname, $ssm, $phone);
             $art_stmt->execute();
             $art_stmt->close();

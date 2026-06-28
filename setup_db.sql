@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('buyer', 'seller', 'admin') DEFAULT 'buyer',
+    status ENUM('active', 'suspended') DEFAULT 'active',
     reset_token VARCHAR(10) DEFAULT NULL,
     reset_token_expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -25,6 +26,7 @@ CREATE TABLE IF NOT EXISTS artisans (
     ssm VARCHAR(50) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     logo_path VARCHAR(255) DEFAULT NULL,
+    approval_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
@@ -147,11 +149,11 @@ INSERT IGNORE INTO users (firstname, lastname, username, email, password, role) 
 ('Siti', 'Aminah', 'buyer4', 'buyer4@kraft.com', '$2y$10$hRZkDGRCgcRDZq11eS5zsOUTDxH3QwWpbH2OIF.BQIPjhrWHKEWXe', 'buyer'),
 ('Ali', 'Abu', 'buyer5', 'buyer5@kraft.com', '$2y$10$hRZkDGRCgcRDZq11eS5zsOUTDxH3QwWpbH2OIF.BQIPjhrWHKEWXe', 'buyer');
 
--- Artisans
-INSERT IGNORE INTO artisans (user_id, shopname, ssm, phone)
-SELECT id, 'Amanah Batik Shop', 'SSM12345', '0123456789' FROM users WHERE username = 'amanah_batik';
-INSERT IGNORE INTO artisans (user_id, shopname, ssm, phone)
-SELECT id, 'Warisan Kayu', 'SSM54321', '0198765432' FROM users WHERE username = 'warisan_kayu';
+-- Artisans (seed sellers are pre-approved so demo data works out of the box)
+INSERT IGNORE INTO artisans (user_id, shopname, ssm, phone, approval_status)
+SELECT id, 'Amanah Batik Shop', 'SSM12345', '0123456789', 'approved' FROM users WHERE username = 'amanah_batik';
+INSERT IGNORE INTO artisans (user_id, shopname, ssm, phone, approval_status)
+SELECT id, 'Warisan Kayu', 'SSM54321', '0198765432', 'approved' FROM users WHERE username = 'warisan_kayu';
 
 -- Products
 INSERT IGNORE INTO products (seller_id, title, description, category, subcategory, technique, color, material, style, tags, price, stock, image_path)

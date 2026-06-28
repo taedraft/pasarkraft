@@ -31,11 +31,30 @@ $sql_users = "CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(100) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
     role ENUM('buyer', 'seller', 'admin') DEFAULT 'buyer',
+    status ENUM('active', 'suspended') DEFAULT 'active',
+    reset_token VARCHAR(10) DEFAULT NULL,
+    reset_token_expires_at DATETIME DEFAULT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB"; // <-- Explicitly set Engine
 
 if ($conn->query($sql_users) === TRUE) {
     echo "Table users created successfully.<br>";
+
+    // Patch legacy databases — add status column if missing
+    $check_status = $conn->query("SHOW COLUMNS FROM users LIKE 'status'");
+    if ($check_status->num_rows == 0) {
+        if ($conn->query("ALTER TABLE users ADD COLUMN status ENUM('active','suspended') DEFAULT 'active' AFTER role")) {
+            echo "Successfully patched legacy users table with status column.<br>";
+        }
+    }
+
+    // Patch legacy databases — add reset token columns if missing
+    $check_reset = $conn->query("SHOW COLUMNS FROM users LIKE 'reset_token'");
+    if ($check_reset->num_rows == 0) {
+        if ($conn->query("ALTER TABLE users ADD COLUMN reset_token VARCHAR(10) DEFAULT NULL, ADD COLUMN reset_token_expires_at DATETIME DEFAULT NULL")) {
+            echo "Successfully patched legacy users table with reset_token columns.<br>";
+        }
+    }
 } else {
     echo "Error creating table users: " . $conn->error . "<br>";
 }
@@ -48,6 +67,7 @@ $sql_artisans = "CREATE TABLE IF NOT EXISTS artisans (
     ssm VARCHAR(50) NOT NULL,
     phone VARCHAR(20) NOT NULL,
     logo_path VARCHAR(255) DEFAULT NULL,
+    approval_status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB";
@@ -55,11 +75,19 @@ $sql_artisans = "CREATE TABLE IF NOT EXISTS artisans (
 if ($conn->query($sql_artisans) === TRUE) {
     echo "Table artisans checked/created successfully.<br>";
     
-    // Patch legacy databases
+    // Patch legacy databases — add logo_path if missing
     $check_logo = $conn->query("SHOW COLUMNS FROM artisans LIKE 'logo_path'");
     if ($check_logo->num_rows == 0) {
         if ($conn->query("ALTER TABLE artisans ADD COLUMN logo_path VARCHAR(255) DEFAULT NULL")) {
             echo "Successfully patched legacy artisans table with logo_path.<br>";
+        }
+    }
+
+    // Patch legacy databases — add approval_status if missing
+    $check_appr = $conn->query("SHOW COLUMNS FROM artisans LIKE 'approval_status'");
+    if ($check_appr->num_rows == 0) {
+        if ($conn->query("ALTER TABLE artisans ADD COLUMN approval_status ENUM('pending','approved','rejected') DEFAULT 'pending' AFTER logo_path")) {
+            echo "Successfully patched legacy artisans table with approval_status column.<br>";
         }
     }
 } else {
@@ -289,7 +317,7 @@ if ($user_count == 0) {
         $uid = $conn->insert_id;
         $seller_ids[$s[2]] = $uid;
         
-        $conn->query("INSERT INTO artisans (user_id, shopname, ssm, phone) VALUES ($uid, '{$s[4]}', '{$s[5]}', '{$s[6]}')");
+        $conn->query("INSERT INTO artisans (user_id, shopname, ssm, phone, approval_status) VALUES ($uid, '{$s[4]}', '{$s[5]}', '{$s[6]}', 'approved')");
     }
     
     // 2. Insert Buyers

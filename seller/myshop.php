@@ -33,8 +33,8 @@ if ($stmt->execute()) {
 $stmt->close();
 
 // Fetch approval status — refreshed from DB every load so it reflects admin actions immediately
-$approval_status = 'approved'; // safe default (allows product add if column not yet in DB)
-$appr_s = $conn->prepare("SELECT COALESCE(approval_status, 'approved') AS approval_status FROM artisans WHERE user_id = ?");
+$approval_status = 'pending'; // safe default (blocks product add if column not yet in DB)
+$appr_s = $conn->prepare("SELECT COALESCE(approval_status, 'pending') AS approval_status FROM artisans WHERE user_id = ?");
 $appr_s->bind_param("i", $seller_id);
 $appr_s->execute();
 $appr_r = $appr_s->get_result();
