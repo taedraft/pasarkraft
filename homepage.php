@@ -53,7 +53,7 @@ if ($appr_col_res) {
 // Base filters always applied: in-stock only + approved sellers only
 $base_where = ["p.stock > 0"];
 if ($has_approval_col) {
-    $base_where[] = "COALESCE(a.approval_status, 'approved') = 'approved'";
+    $base_where[] = "COALESCE(a.approval_status, 'pending') = 'approved'";
 }
 
 if ($filter_query !== '') {

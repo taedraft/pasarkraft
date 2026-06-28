@@ -63,7 +63,7 @@ $params = [$max_price];
 $types = "d";
 
 if ($has_approval_col) {
-    $where_clauses[] = "COALESCE(a.approval_status, 'approved') = 'approved'";
+    $where_clauses[] = "COALESCE(a.approval_status, 'pending') = 'approved'";
 }
 
 if (!empty($selected_subs)) {
