@@ -154,15 +154,41 @@ if (!empty($selected_colors)) {
     }
 }
 
+// 1. Count total matching items
+$count_sql = "SELECT COUNT(*) as total FROM products p LEFT JOIN artisans a ON p.seller_id = a.user_id";
+if (!empty($where_clauses)) {
+    $count_sql .= " WHERE " . implode(" AND ", $where_clauses);
+}
+$count_stmt = $conn->prepare($count_sql);
+if (!empty($params)) {
+    $count_stmt->bind_param($types, ...$params);
+}
+$count_stmt->execute();
+$count_res = $count_stmt->get_result()->fetch_assoc();
+$total_items = $count_res['total'] ?? 0;
+$count_stmt->close();
+
+$limit = 9;
+$total_pages = ceil($total_items / $limit);
+$page = isset($_GET['page']) ? max(1, min($total_pages, intval($_GET['page']))) : 1;
+if ($total_pages < 1) $page = 1;
+$offset = ($page - 1) * $limit;
+
+// 2. Fetch paginated products
 $sql = "SELECT p.*, a.shopname FROM products p LEFT JOIN artisans a ON p.seller_id = a.user_id";
 if (!empty($where_clauses)) {
     $sql .= " WHERE " . implode(" AND ", $where_clauses);
 }
-$sql .= " " . $order_sql;
+$sql .= " " . $order_sql . " LIMIT ? OFFSET ?";
+
+$paginated_params = $params;
+$paginated_params[] = $limit;
+$paginated_params[] = $offset;
+$paginated_types = $types . "ii";
 
 $stmt = $conn->prepare($sql);
-if (!empty($params)) {
-    $stmt->bind_param($types, ...$params);
+if (!empty($paginated_params)) {
+    $stmt->bind_param($paginated_types, ...$paginated_params);
 }
 $stmt->execute();
 $result = $stmt->get_result();
@@ -461,12 +487,31 @@ $stmt->close();
                 <?php endif; ?>
             </div>
 
-            <div class="pagination">
-                <a href="#" class="active">1</a>
-                <a href="#">2</a>
-                <a href="#">3</a>
-                <a href="#"><i class="fas fa-chevron-right"></i></a>
-            </div>
+            <?php if ($total_pages > 1): ?>
+                <div class="pagination">
+                    <?php if ($page > 1): 
+                        $prev_query = $_GET;
+                        $prev_query['page'] = $page - 1;
+                    ?>
+                        <a href="?<?php echo http_build_query($prev_query); ?>"><i class="fas fa-chevron-left"></i></a>
+                    <?php endif; ?>
+
+                    <?php for ($i = 1; $i <= $total_pages; $i++): 
+                        $page_query = $_GET;
+                        $page_query['page'] = $i;
+                        $active_class = ($page == $i) ? 'class="active"' : '';
+                    ?>
+                        <a href="?<?php echo http_build_query($page_query); ?>" <?php echo $active_class; ?>><?php echo $i; ?></a>
+                    <?php endfor; ?>
+
+                    <?php if ($page < $total_pages): 
+                        $next_query = $_GET;
+                        $next_query['page'] = $page + 1;
+                    ?>
+                        <a href="?<?php echo http_build_query($next_query); ?>"><i class="fas fa-chevron-right"></i></a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </main>
     </div>
 
