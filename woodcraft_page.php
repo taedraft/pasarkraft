@@ -158,7 +158,7 @@ $count_res = $count_stmt->get_result()->fetch_assoc();
 $total_items = $count_res['total'] ?? 0;
 $count_stmt->close();
 
-$limit = 9;
+$limit = 12;
 $total_pages = ceil($total_items / $limit);
 $page = isset($_GET['page']) ? max(1, min($total_pages, intval($_GET['page']))) : 1;
 if ($total_pages < 1) $page = 1;
