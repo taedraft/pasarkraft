@@ -97,11 +97,26 @@ if ($filter_pattern !== '') {
 }
 
 if (!empty($selected_subs)) {
-    $placeholders = implode(',', array_fill(0, count($selected_subs), '?'));
-    $where_clauses[] = "p.subcategory IN ($placeholders)";
+    $sub_clauses = [];
     foreach ($selected_subs as $s) {
-        $params[] = $s;
-        $types .= "s";
+        if ($s === "Men's Wear") {
+            $sub_clauses[] = "(p.subcategory = 'Men\'s Wear' OR p.subcategory = 'Men\'\'s Wear' OR p.subcategory = 'Menswear' OR p.subcategory = 'Men Wear' OR p.subcategory LIKE '%Men%Wear%')";
+        } elseif ($s === "Women's Wear") {
+            $sub_clauses[] = "(p.subcategory = 'Women\'s Wear' OR p.subcategory = 'Women\'\'s Wear' OR p.subcategory = 'Womenswear' OR p.subcategory = 'Women Wear' OR p.subcategory LIKE '%Women%Wear%')";
+        } elseif ($s === "Batik Textile") {
+            $sub_clauses[] = "(p.subcategory = 'Batik Textile' OR p.subcategory LIKE '%Textile%')";
+        } elseif ($s === "Handcrafted Items") {
+            $sub_clauses[] = "(p.subcategory = 'Handcrafted Items' OR p.subcategory LIKE '%Handcraft%')";
+        } elseif ($s === "Accessories") {
+            $sub_clauses[] = "(p.subcategory = 'Accessories' OR p.subcategory LIKE '%Accessory%')";
+        } else {
+            $sub_clauses[] = "p.subcategory = ?";
+            $params[] = $s;
+            $types .= "s";
+        }
+    }
+    if (!empty($sub_clauses)) {
+        $where_clauses[] = "(" . implode(" OR ", $sub_clauses) . ")";
     }
 }
 

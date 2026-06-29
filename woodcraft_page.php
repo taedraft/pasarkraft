@@ -97,11 +97,26 @@ if ($filter_pattern !== '') {
 }
 
 if (!empty($selected_subs)) {
-    $placeholders = implode(',', array_fill(0, count($selected_subs), '?'));
-    $where_clauses[] = "p.subcategory IN ($placeholders)";
+    $sub_clauses = [];
     foreach ($selected_subs as $s) {
-        $params[] = $s;
-        $types .= "s";
+        if ($s === "Furniture") {
+            $sub_clauses[] = "(p.subcategory = 'Furniture' OR p.subcategory LIKE '%Furniture%')";
+        } elseif ($s === "Home Decor") {
+            $sub_clauses[] = "(p.subcategory = 'Home Decor' OR p.subcategory LIKE '%Decor%')";
+        } elseif ($s === "Kitchenware") {
+            $sub_clauses[] = "(p.subcategory = 'Kitchenware' OR p.subcategory LIKE '%Kitchen%')";
+        } elseif ($s === "Traditional Carving") {
+            $sub_clauses[] = "(p.subcategory = 'Traditional Carving' OR p.subcategory LIKE '%Carving%')";
+        } elseif ($s === "Souvenirs") {
+            $sub_clauses[] = "(p.subcategory = 'Souvenirs' OR p.subcategory LIKE '%Souvenir%')";
+        } else {
+            $sub_clauses[] = "p.subcategory = ?";
+            $params[] = $s;
+            $types .= "s";
+        }
+    }
+    if (!empty($sub_clauses)) {
+        $where_clauses[] = "(" . implode(" OR ", $sub_clauses) . ")";
     }
 }
 
