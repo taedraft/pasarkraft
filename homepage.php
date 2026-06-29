@@ -184,7 +184,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
     <header>
         <nav>
             <a href="#" class="logo">Pasar<span>kraft</span>.</a>
-            <form class="header-search" method="GET" action="homepage.php">
+            <form class="header-search" method="GET" action="homepage.php#products">
                 <input type="text" name="q" placeholder="Search by product name, color, pattern..."
                     value="<?php echo htmlspecialchars($filter_query); ?>">
                 <div class="search-controls">
