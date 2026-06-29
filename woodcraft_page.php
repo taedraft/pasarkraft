@@ -375,18 +375,24 @@ $stmt->close();
                             }
                         ?>
                         <article class="product-card" data-product-id="<?php echo $item['id']; ?>">
-                            <div class="product-image">
-                                <img src="<?php echo $img_src; ?>"
-                                    alt="<?php echo htmlspecialchars($item['title']); ?>">
-                            </div>
+                            <a href="product_detail.php?id=<?php echo $item['id']; ?>" class="product-card-link" style="text-decoration: none; color: inherit; display: block;">
+                                <div class="product-image">
+                                    <img src="<?php echo $img_src; ?>"
+                                        alt="<?php echo htmlspecialchars($item['title']); ?>">
+                                </div>
+                            </a>
                             <div class="product-info">
                                 <div class="product-meta">
                                     <span class="product-category"><?php echo htmlspecialchars($item['category']); ?></span>
-                        <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-top: 5px;"><i class="fas fa-store"></i> <?php echo htmlspecialchars($item['shopname'] ?? 'Artisan Shop'); ?></div>
-                                <button class="wishlist-btn <?php echo $wishlist_class; ?>" onclick="toggleWishlist(this, <?php echo $item['id']; ?>)" title="Add to Wishlist"><i
-                                            class="<?php echo $heart_icon; ?>" style="<?php echo $heart_color; ?>"></i></button>
+                                    <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-top: 5px;"><i class="fas fa-store"></i> <?php echo htmlspecialchars($item['shopname'] ?? 'Artisan Shop'); ?></div>
+                                    <button class="wishlist-btn <?php echo $wishlist_class; ?>" onclick="toggleWishlist(this, <?php echo $item['id']; ?>)" title="Add to Wishlist"><i
+                                                class="<?php echo $heart_icon; ?>" style="<?php echo $heart_color; ?>"></i></button>
                                 </div>
-                                <h3 class="product-title"><?php echo htmlspecialchars($item['title']); ?></h3>
+                                <h3 class="product-title">
+                                    <a href="product_detail.php?id=<?php echo $item['id']; ?>" style="text-decoration: none; color: inherit;">
+                                        <?php echo htmlspecialchars($item['title']); ?>
+                                    </a>
+                                </h3>
                                 <span class="product-price">RM <?php echo number_format($item['price'], 2); ?></span>
                                 <a href="buyer/inquiry_messages.php?seller_id=<?php echo urlencode($item['seller_id']); ?>&product_id=<?php echo $item['id']; ?>"
                                     class="btn-chat" data-product-id="<?php echo $item['id']; ?>">Chat with Seller</a>

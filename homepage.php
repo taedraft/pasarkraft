@@ -378,14 +378,16 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                         $match_percentage = 99;
                     ?>
                     <article class="product-card" data-product-id="<?php echo $prod['id']; ?>">
-                        <div class="product-image" style="position: relative;">
-                            <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
-                            <!-- AI Match Tag -->
-                            <span class="ai-match-badge"
-                                style="position: absolute; top: 15px; left: 15px; background: rgba(44, 62, 80, 0.95); color: white; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; border-radius: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 5px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); z-index: 10;">
-                                <i class="fas fa-brain" style="color: #e67e22;"></i> <?php echo $match_percentage; ?>% Match
-                            </span>
-                        </div>
+                        <a href="product_detail.php?id=<?php echo $prod['id']; ?>" class="product-card-link" style="text-decoration: none; color: inherit; display: block;">
+                            <div class="product-image" style="position: relative;">
+                                <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
+                                <!-- AI Match Tag -->
+                                <span class="ai-match-badge"
+                                    style="position: absolute; top: 15px; left: 15px; background: rgba(44, 62, 80, 0.95); color: white; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; border-radius: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 5px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); z-index: 10;">
+                                    <i class="fas fa-brain" style="color: #e67e22;"></i> <?php echo $match_percentage; ?>% Match
+                                </span>
+                            </div>
+                        </a>
                         <?php
                         $is_wished = in_array($prod['id'], $user_wishlist);
                         $wishlist_class = $is_wished ? 'active' : '';
@@ -402,7 +404,11 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                                     onclick="toggleWishlist(this, <?php echo $prod['id']; ?>)" title="Add to Wishlist"><i
                                         class="<?php echo $heart_icon; ?>" style="<?php echo $heart_color; ?>"></i></button>
                             </div>
-                            <h3 class="product-title"><?php echo htmlspecialchars($prod['title']); ?></h3>
+                            <h3 class="product-title">
+                                <a href="product_detail.php?id=<?php echo $prod['id']; ?>" style="text-decoration: none; color: inherit;">
+                                    <?php echo htmlspecialchars($prod['title']); ?>
+                                </a>
+                            </h3>
                             <span class="product-price">RM <?php echo number_format($prod['price'], 2); ?></span>
                             <a href="<?php echo $is_buyer ? 'buyer/inquiry_messages.php?seller_id='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=inquiries'; ?>"
                                 class="btn-chat" data-product-id="<?php echo $prod['id']; ?>">
@@ -439,9 +445,11 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                     }
                     ?>
                     <article class="product-card" data-product-id="<?php echo $prod['id']; ?>">
-                        <div class="product-image">
-                            <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
-                        </div>
+                        <a href="product_detail.php?id=<?php echo $prod['id']; ?>" class="product-card-link" style="text-decoration: none; color: inherit; display: block;">
+                            <div class="product-image">
+                                <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
+                            </div>
+                        </a>
                         <?php
                         $is_wished = in_array($prod['id'], $user_wishlist);
                         $wishlist_class = $is_wished ? 'active' : '';
@@ -458,7 +466,11 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                                     onclick="toggleWishlist(this, <?php echo $prod['id']; ?>)" title="Add to Wishlist"><i
                                         class="<?php echo $heart_icon; ?>" style="<?php echo $heart_color; ?>"></i></button>
                             </div>
-                            <h3 class="product-title"><?php echo htmlspecialchars($prod['title']); ?></h3>
+                            <h3 class="product-title">
+                                <a href="product_detail.php?id=<?php echo $prod['id']; ?>" style="text-decoration: none; color: inherit;">
+                                    <?php echo htmlspecialchars($prod['title']); ?>
+                                </a>
+                            </h3>
                             <span class="product-price">RM <?php echo number_format($prod['price'], 2); ?></span>
                             <a href="<?php echo $is_buyer ? 'buyer/inquiry_messages.php?seller_id='.urlencode($prod['seller_id']).'&product_id='.$prod['id'] : 'buyer/login_buyer.php?from=inquiries'; ?>"
                                 class="btn-chat" data-product-id="<?php echo $prod['id']; ?>">

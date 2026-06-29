@@ -345,10 +345,12 @@ if (empty($recommended_products)) {
                             onclick="removeFromWishlist(this, <?php echo $item['id']; ?>)">
                             <i class="fas fa-times"></i>
                         </button>
-                        <div class="product-image">
-                            <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'png/batik_shirt.png'); ?>"
-                                alt="<?php echo htmlspecialchars($item['title']); ?>">
-                        </div>
+                        <a href="product_detail.php?id=<?php echo $item['id']; ?>" class="product-card-link" style="text-decoration: none; color: inherit; display: block;">
+                            <div class="product-image">
+                                <img src="<?php echo htmlspecialchars($item['image_path'] ? $item['image_path'] : 'png/batik_shirt.png'); ?>"
+                                    alt="<?php echo htmlspecialchars($item['title']); ?>">
+                            </div>
+                        </a>
                         <div class="product-info">
                             <div class="product-meta">
                                 <span class="product-category">
@@ -359,7 +361,9 @@ if (empty($recommended_products)) {
                                         style="color:#e74c3c;"></i></button>
                             </div>
                             <h3 class="product-title">
-                                <?php echo htmlspecialchars($item['title']); ?>
+                                <a href="product_detail.php?id=<?php echo $item['id']; ?>" style="text-decoration: none; color: inherit;">
+                                    <?php echo htmlspecialchars($item['title']); ?>
+                                </a>
                             </h3>
                             <span class="product-price">RM
                                 <?php echo number_format($item['price'], 2); ?>
@@ -402,14 +406,16 @@ if (empty($recommended_products)) {
                             $match_percentage = 99;
                         ?>
                         <article class="product-card">
-                            <div class="product-image" style="position: relative;">
-                                <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
-                                <span class="ai-match-badge"
-                                    style="position: absolute; top: 15px; left: 15px; background: rgba(44, 62, 80, 0.95); color: white; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; border-radius: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 5px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); z-index: 10;">
-                                    <i class="fas fa-brain" style="color: #e67e22;"></i>
-                                    <?php echo $match_percentage; ?>% Match
-                                </span>
-                            </div>
+                            <a href="product_detail.php?id=<?php echo $prod['id']; ?>" class="product-card-link" style="text-decoration: none; color: inherit; display: block;">
+                                <div class="product-image" style="position: relative;">
+                                    <img src="<?php echo $img_src; ?>" alt="<?php echo htmlspecialchars($prod['title']); ?>">
+                                    <span class="ai-match-badge"
+                                        style="position: absolute; top: 15px; left: 15px; background: rgba(44, 62, 80, 0.95); color: white; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; border-radius: 20px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); display: flex; align-items: center; gap: 5px; backdrop-filter: blur(5px); border: 1px solid rgba(255,255,255,0.1); z-index: 10;">
+                                        <i class="fas fa-brain" style="color: #e67e22;"></i>
+                                        <?php echo $match_percentage; ?>% Match
+                                    </span>
+                                </div>
+                            </a>
                             <div class="product-info">
                                 <div class="product-meta">
                                     <span class="product-category">
@@ -423,7 +429,9 @@ if (empty($recommended_products)) {
                                         title="Add to Wishlist"><i class="far fa-heart"></i></button>
                                 </div>
                                 <h3 class="product-title">
-                                    <?php echo htmlspecialchars($prod['title']); ?>
+                                    <a href="product_detail.php?id=<?php echo $prod['id']; ?>" style="text-decoration: none; color: inherit;">
+                                        <?php echo htmlspecialchars($prod['title']); ?>
+                                    </a>
                                 </h3>
                                 <span class="product-price">RM
                                     <?php echo number_format($prod['price'], 2); ?>
