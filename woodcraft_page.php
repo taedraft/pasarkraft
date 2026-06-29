@@ -100,15 +100,15 @@ if (!empty($selected_subs)) {
     $sub_clauses = [];
     foreach ($selected_subs as $s) {
         if ($s === "Furniture") {
-            $sub_clauses[] = "(p.subcategory = 'Furniture' OR p.subcategory LIKE '%Furniture%')";
+            $sub_clauses[] = "(p.subcategory = 'Furniture' OR p.subcategory LIKE '%Furniture%' OR p.title LIKE '%Furniture%' OR p.title LIKE '%Table%' OR p.title LIKE '%Stool%' OR p.title LIKE '%Chair%' OR p.title LIKE '%Bench%' OR p.title LIKE '%Couch%' OR p.title LIKE '%Cabinet%' OR p.title LIKE '%Desk%')";
         } elseif ($s === "Home Decor") {
-            $sub_clauses[] = "(p.subcategory = 'Home Decor' OR p.subcategory LIKE '%Decor%')";
+            $sub_clauses[] = "(p.subcategory = 'Home Decor' OR p.subcategory LIKE '%Decor%' OR p.title LIKE '%Decor%' OR p.title LIKE '%Plaque%' OR p.title LIKE '%Sculpt%' OR p.title LIKE '%Art%' OR p.title LIKE '%Frame%' OR p.title LIKE '%Mirror%' OR p.title LIKE '%Vase%' OR p.title LIKE '%Clock%')";
         } elseif ($s === "Kitchenware") {
-            $sub_clauses[] = "(p.subcategory = 'Kitchenware' OR p.subcategory LIKE '%Kitchen%')";
+            $sub_clauses[] = "(p.subcategory = 'Kitchenware' OR p.subcategory LIKE '%Kitchen%' OR p.title LIKE '%Kitchen%' OR p.title LIKE '%Plate%' OR p.title LIKE '%Bowl%' OR p.title LIKE '%Tray%' OR p.title LIKE '%Spoon%' OR p.title LIKE '%Fork%' OR p.title LIKE '%Utensil%' OR p.title LIKE '%Board%' OR p.title LIKE '%Coaster%')";
         } elseif ($s === "Traditional Carving") {
-            $sub_clauses[] = "(p.subcategory = 'Traditional Carving' OR p.subcategory LIKE '%Carving%')";
+            $sub_clauses[] = "(p.subcategory = 'Traditional Carving' OR p.subcategory LIKE '%Carving%' OR p.title LIKE '%Carving%' OR p.title LIKE '%Carved%' OR p.title LIKE '%Relief%' OR p.title LIKE '%Malay%')";
         } elseif ($s === "Souvenirs") {
-            $sub_clauses[] = "(p.subcategory = 'Souvenirs' OR p.subcategory LIKE '%Souvenir%')";
+            $sub_clauses[] = "(p.subcategory = 'Souvenirs' OR p.subcategory LIKE '%Souvenir%' OR p.title LIKE '%Souvenir%' OR p.title LIKE '%Gift%' OR p.title LIKE '%Box%' OR p.title LIKE '%Keychain%')";
         } else {
             $sub_clauses[] = "p.subcategory = ?";
             $params[] = $s;
