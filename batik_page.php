@@ -5,6 +5,30 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
 require 'db_connect.php';
 
+// Fetch top 4 trending tags from active products
+$trending_tags = [];
+$tags_query = $conn->query("SELECT tags FROM products WHERE stock > 0");
+if ($tags_query) {
+    $tag_counts = [];
+    while ($t_row = $tags_query->fetch_assoc()) {
+        if (!empty($t_row['tags'])) {
+            $individual_tags = explode(',', $t_row['tags']);
+            foreach ($individual_tags as $tag) {
+                $trimmed = trim($tag);
+                if ($trimmed !== '') {
+                    $tag_counts[$trimmed] = ($tag_counts[$trimmed] ?? 0) + 1;
+                }
+            }
+        }
+    }
+    arsort($tag_counts);
+    $trending_tags = array_slice(array_keys($tag_counts), 0, 4);
+}
+if (empty($trending_tags)) {
+    $trending_tags = ["Handmade", "Batik", "Woodcraft", "Gift"];
+}
+
+
 $unread_count = 0;
 if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer') {
     $unread_stmt = $conn->prepare("SELECT COUNT(DISTINCT sender_id) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
@@ -278,10 +302,9 @@ $stmt->close();
                     <div class="dropdown-section">
                         <h4>Trending Tags</h4>
                         <div class="tags">
-                            <a href="homepage.php?q=Handmade" style="text-decoration:none; color:inherit;"><span>#Handmade</span></a>
-                            <a href="homepage.php?q=EcoFriendly" style="text-decoration:none; color:inherit;"><span>#EcoFriendly</span></a>
-                            <a href="homepage.php?q=Gifts" style="text-decoration:none; color:inherit;"><span>#Gifts</span></a>
-                            <a href="homepage.php?q=Vintage" style="text-decoration:none; color:inherit;"><span>#Vintage</span></a>
+                            <?php foreach ($trending_tags as $t): ?>
+                                <a href="homepage.php?q=<?php echo urlencode($t); ?>" style="text-decoration:none; color:inherit;"><span>#<?php echo htmlspecialchars($t); ?></span></a>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </div>

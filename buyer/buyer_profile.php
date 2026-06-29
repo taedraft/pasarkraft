@@ -5,6 +5,30 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
 require '../db_connect.php';
 
+// Fetch top 4 trending tags from active products
+$trending_tags = [];
+$tags_query = $conn->query("SELECT tags FROM products WHERE stock > 0");
+if ($tags_query) {
+    $tag_counts = [];
+    while ($t_row = $tags_query->fetch_assoc()) {
+        if (!empty($t_row['tags'])) {
+            $individual_tags = explode(',', $t_row['tags']);
+            foreach ($individual_tags as $tag) {
+                $trimmed = trim($tag);
+                if ($trimmed !== '') {
+                    $tag_counts[$trimmed] = ($tag_counts[$trimmed] ?? 0) + 1;
+                }
+            }
+        }
+    }
+    arsort($tag_counts);
+    $trending_tags = array_slice(array_keys($tag_counts), 0, 4);
+}
+if (empty($trending_tags)) {
+    $trending_tags = ["Handmade", "Batik", "Woodcraft", "Gift"];
+}
+
+
 $unread_count = 0;
 if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer') {
     $unread_stmt = $conn->prepare("SELECT COUNT(DISTINCT sender_id) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
@@ -162,33 +186,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <header>
         <nav>
             <a href="../homepage.php" class="logo">Pasar<span>kraft</span>.</a>
-            <div class="header-search">
-                <input type="text" placeholder="Search by product name, color, pattern...">
+            <form class="header-search" method="GET" action="../homepage.php#products">
+                <input type="text" name="q" placeholder="Search by product name, color, pattern...">
                 <div class="search-controls">
-                    <button class="filter-btn" onclick="toggleFilter()">
+                    <button type="button" class="filter-btn" onclick="toggleFilter()">
                         <i class="fas fa-sliders-h"></i>
                         <span>Filter</span>
                     </button>
-                    <button class="search-btn"><i class="fas fa-search"></i></button>
+                    <button type="submit" class="search-btn"><i class="fas fa-search"></i></button>
                 </div>
                 <!-- Dropdown Menu -->
                 <div class="search-dropdown">
                     <div class="dropdown-section">
                         <h4>Collections</h4>
                         <div class="collection-list">
-                            <a href="#"><i class="fas fa-tshirt"></i> Batik Fashion</a>
+                            <a href="../batik_page.php"><i class="fas fa-tshirt"></i> Batik Fashion</a>
                             <a href="../woodcraft_page.php"><i class="fas fa-couch"></i> Wood Furniture</a>
                             <a href="../woodcraft_page.php"><i class="fas fa-tree"></i> Handcrafted wood</a>
-                            <a href="#"><i class="fas fa-scroll"></i> Batik Textile</a>
+                            <a href="../batik_page.php"><i class="fas fa-scroll"></i> Batik Textile</a>
                         </div>
                     </div>
                     <div class="dropdown-section">
                         <h4>Trending Tags</h4>
                         <div class="tags">
-                            <span>#Handmade</span>
-                            <span>#EcoFriendly</span>
-                            <span>#Gifts</span>
-                            <span>#Vintage</span>
+                            <?php foreach ($trending_tags as $t): ?>
+                                <a href="../homepage.php?q=<?php echo urlencode($t); ?>#products" style="text-decoration:none; color:inherit;"><span>#<?php echo htmlspecialchars($t); ?></span></a>
+                            <?php endforeach; ?>
                         </div>
                     </div>
                 </div>
@@ -243,7 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     });
                 </script>
-            </div>
+            </form>
             <div class="nav-links">
                 <a href="../batik_page.php">Batik</a>
                 <a href="../woodcraft_page.php">Woodcraft</a>
