@@ -20,7 +20,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'seller') {
 $seller_id = $_SESSION['user_id'];
 $unread_count = 0;
 if (isset($_SESSION['user_id'])) {
-    $unread_stmt = $conn->prepare("SELECT COUNT(*) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
+    $unread_stmt = $conn->prepare("SELECT COUNT(DISTINCT sender_id) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
     $unread_stmt->bind_param("i", $_SESSION['user_id']);
     $unread_stmt->execute();
     $unread_res = $unread_stmt->get_result();
@@ -152,7 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
 
 // Fetch all inquiries for this seller
 $inquiries = [];
-$stmt = $conn->prepare("SELECT i.*, u.firstname, u.lastname, u.username, p.title as product_title, p.image_path FROM inquiries i JOIN users u ON i.buyer_id = u.id JOIN products p ON i.product_id = p.id WHERE i.seller_id = ? ORDER BY i.updated_at DESC");
+$stmt = $conn->prepare("SELECT i.*, u.firstname, u.lastname, u.username, p.title as product_title, p.price, p.image_path FROM inquiries i JOIN users u ON i.buyer_id = u.id JOIN products p ON i.product_id = p.id WHERE i.seller_id = ? ORDER BY i.updated_at DESC");
 $stmt->bind_param("i", $seller_id);
 $stmt->execute();
 $inq_res = $stmt->get_result();
@@ -687,7 +687,7 @@ if ($active_inquiry_id > 0) {
                         </div>
                         <div>
                             <h3><?php echo htmlspecialchars($dispName); ?></h3>
-                            <p>Interest: <strong><?php echo htmlspecialchars($active_inquiry['product_title']); ?></strong>
+                            <p>Interest: <strong><?php echo htmlspecialchars($active_inquiry['product_title']); ?></strong> <span style="background:#e8f4fd; color:#2980b9; padding:2px 8px; border-radius:4px; font-size:0.8rem; font-weight:600; margin-left:8px;">RM <?php echo number_format($active_inquiry['price'], 2); ?></span>
                             </p>
                         </div>
                     </div>

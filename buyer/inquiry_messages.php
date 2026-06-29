@@ -7,7 +7,7 @@ require '../db_connect.php';
 
 $unread_count = 0;
 if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'buyer') {
-    $unread_stmt = $conn->prepare("SELECT COUNT(*) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
+    $unread_stmt = $conn->prepare("SELECT COUNT(DISTINCT sender_id) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
     $unread_stmt->bind_param("i", $_SESSION['user_id']);
     $unread_stmt->execute();
     $unread_res = $unread_stmt->get_result();
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
 
 // Fetch inquiries
 $inquiries = [];
-$stmt = $conn->prepare("SELECT i.*, a.shopname as seller_name, p.title as product_title, p.image_path FROM inquiries i JOIN artisans a ON i.seller_id = a.user_id JOIN products p ON i.product_id = p.id WHERE i.buyer_id = ? ORDER BY i.updated_at DESC");
+$stmt = $conn->prepare("SELECT i.*, a.shopname as seller_name, p.title as product_title, p.price, p.image_path FROM inquiries i JOIN artisans a ON i.seller_id = a.user_id JOIN products p ON i.product_id = p.id WHERE i.buyer_id = ? ORDER BY i.updated_at DESC");
 $stmt->bind_param("i", $buyer_id);
 $stmt->execute();
 $inq_res = $stmt->get_result();
@@ -133,8 +133,8 @@ if ($active_inquiry_id > 0) {
         $stmt->bind_param("i", $active_inquiry_id);
         $stmt->execute();
         $msg_res = $stmt->get_result();
-        while ($m = $msg_res->fetch_assoc()) {
-            $messages[] = $m;
+        while ($row = $msg_res->fetch_assoc()) {
+            $messages[] = $row;
         }
         $stmt->close();
     }
@@ -142,19 +142,17 @@ if ($active_inquiry_id > 0) {
 ?>
 <!DOCTYPE html>
 <html lang="ms">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Inquiries & Chats | Pasarkraft</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <title>Inquiry Messages | Pasarkraft</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../styles.css">
     <style>
-        body { background: #fdfaf6; }
-        .chat-container { max-width: 1200px; margin: 100px auto 3rem; display: flex; height: 75vh; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #eee; }
-        .chat-sidebar { width: 350px; border-right: 1px solid #eee; background: #fdfdfd; display: flex; flex-direction: column; }
-        .chat-sidebar-header { padding: 20px; border-bottom: 1px solid #eee; background: #fff; }
-        .chat-sidebar-header h3 { color: var(--primary-color); margin: 0; font-size: 1.2rem; }
         .chat-contacts { overflow-y: auto; flex: 1; }
         .contact-item { padding: 15px 20px; border-bottom: 1px solid #f5f5f5; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
         .contact-item:hover, .contact-item.active { background: #f0f7ff; }

@@ -8,7 +8,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'seller') {
 }
 $seller_id = $_SESSION['user_id']; $unread_count = 0;
 if (isset($_SESSION['user_id'])) {
-    $unread_stmt = $conn->prepare("SELECT COUNT(*) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
+    $unread_stmt = $conn->prepare("SELECT COUNT(DISTINCT sender_id) as unread_count FROM messages WHERE receiver_id = ? AND is_read = 0");
     $unread_stmt->bind_param("i", $_SESSION['user_id']);
     $unread_stmt->execute();
     $unread_res = $unread_stmt->get_result();
