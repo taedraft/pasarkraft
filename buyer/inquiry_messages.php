@@ -153,6 +153,11 @@ if ($active_inquiry_id > 0) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../styles.css">
     <style>
+        body { background: #fdfaf6; }
+        .chat-container { max-width: 1200px; margin: 100px auto 3rem; display: flex; height: 75vh; background: #fff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; border: 1px solid #eee; }
+        .chat-sidebar { width: 350px; border-right: 1px solid #eee; background: #fdfdfd; display: flex; flex-direction: column; }
+        .chat-sidebar-header { padding: 20px; border-bottom: 1px solid #eee; background: #fff; }
+        .chat-sidebar-header h3 { color: var(--primary-color); margin: 0; font-size: 1.2rem; }
         .chat-contacts { overflow-y: auto; flex: 1; }
         .contact-item { padding: 15px 20px; border-bottom: 1px solid #f5f5f5; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
         .contact-item:hover, .contact-item.active { background: #f0f7ff; }
