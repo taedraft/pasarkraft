@@ -5,12 +5,6 @@ header("Pragma: no-cache");
 header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
 require '../db_connect.php';
 
-// Ensure is_system column exists (idempotent)
-$_col_chk = $conn->query("SHOW COLUMNS FROM messages LIKE 'is_system'");
-if ($_col_chk && $_col_chk->num_rows === 0) {
-    $conn->query("ALTER TABLE messages ADD COLUMN is_system TINYINT(1) NOT NULL DEFAULT 0");
-}
-
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'seller') {
     $_SESSION['login_error'] = "Log in as a seller to view messages.";
     header("Location: login_seller.php");
@@ -48,33 +42,22 @@ $stmt->close();
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
     if (isset($_POST['message'])) {
         $msg = trim($_POST['message']);
-        $offer_amount = isset($_POST['offer_amount']) ? floatval($_POST['offer_amount']) : 0;
-        $is_offer = ($offer_amount > 0) ? 1 : 0;
-
-        if (!empty($msg) || $is_offer) {
-            // Find buyer_id and current status for this inquiry
-            $b_stmt = $conn->prepare("SELECT buyer_id, status FROM inquiries WHERE id = ? AND seller_id = ?");
+        if (!empty($msg)) {
+            // Find buyer_id for this inquiry
+            $b_stmt = $conn->prepare("SELECT buyer_id FROM inquiries WHERE id = ? AND seller_id = ?");
             $b_stmt->bind_param("ii", $active_inquiry_id, $seller_id);
             $b_stmt->execute();
             $b_res = $b_stmt->get_result();
             if ($b_row = $b_res->fetch_assoc()) {
-                if ($b_row['status'] !== 'Sold' && $b_row['status'] !== 'No Deal') {
-                    $buyer_id = $b_row['buyer_id'];
-                    $msg_text = $msg ?: 'Counter-offer sent.';
-                    $i_stmt = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message, is_offer, offer_amount) VALUES (?, ?, ?, ?, ?, ?)");
-                    $i_stmt->bind_param("iiisid", $active_inquiry_id, $seller_id, $buyer_id, $msg_text, $is_offer, $offer_amount);
-                    $i_stmt->execute();
+                $buyer_id = $b_row['buyer_id'];
+                $i_stmt = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message) VALUES (?, ?, ?, ?)");
+                $i_stmt->bind_param("iiis", $active_inquiry_id, $seller_id, $buyer_id, $msg);
+                $i_stmt->execute();
 
-                    if ($is_offer) {
-                        $u_stmt = $conn->prepare("UPDATE inquiries SET current_offer = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-                        $u_stmt->bind_param("di", $offer_amount, $active_inquiry_id);
-                        $u_stmt->execute();
-                    } else {
-                        $u_stmt = $conn->prepare("UPDATE inquiries SET updated_at = CURRENT_TIMESTAMP WHERE id = ?");
-                        $u_stmt->bind_param("i", $active_inquiry_id);
-                        $u_stmt->execute();
-                    }
-                }
+                // Update inquiry updated_at
+                $u_stmt = $conn->prepare("UPDATE inquiries SET updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+                $u_stmt->bind_param("i", $active_inquiry_id);
+                $u_stmt->execute();
             }
         }
     }
@@ -82,8 +65,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
         $new_status = $_POST['update_status'];
         $u_stmt = $conn->prepare("UPDATE inquiries SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND seller_id = ?");
         $u_stmt->bind_param("sii", $new_status, $active_inquiry_id, $seller_id);
-        if ($u_stmt->execute()) {
-            // Fetch buyer_id and product_id
+        if ($u_stmt->execute() && ($new_status === 'Deal Agreed' || $new_status === 'Sold')) {
+            // Fetch buyer_id and product_id to log purchase
             $inq_info = $conn->prepare("SELECT buyer_id, product_id FROM inquiries WHERE id = ?");
             $inq_info->bind_param("i", $active_inquiry_id);
             if ($inq_info->execute()) {
@@ -96,7 +79,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
                     if ($new_status === 'Sold' && isset($_POST['qty_sold'])) {
                         $qty_sold = intval($_POST['qty_sold']);
                         if ($qty_sold > 0) {
-                            // Fetch current stock first to prevent negative
                             $stk_res = $conn->prepare("SELECT stock FROM products WHERE id = ? AND seller_id = ?");
                             $stk_res->bind_param("ii", $p_id, $seller_id);
                             $stk_res->execute();
@@ -113,40 +95,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_inquiry_id > 0) {
                         }
                     }
 
-                    // Insert system message to announce status change in chat
-                    $status_labels = [
-                        'Deal Agreed' => '[Deal Accepted] Seller accepted the deal.',
-                        'No Deal' => '[No Deal] No deal was reached.',
-                        'Sold' => '[Sold] Transaction marked as sold.',
-                        'In Discussion' => '[Reopened] Deal cancelled - back to negotiation.',
-                    ];
-                    if (isset($status_labels[$new_status])) {
-                        $sys_msg = $status_labels[$new_status];
-                        $sys_ins = $conn->prepare("INSERT INTO messages (inquiry_id, sender_id, receiver_id, message, is_system) VALUES (?, ?, ?, ?, 1)");
-                        $sys_ins->bind_param("iiis", $active_inquiry_id, $seller_id, $b_id, $sys_msg);
-                        $sys_ins->execute();
-                        $sys_ins->close();
+                    // Log purchase interaction (value = 5.0) if not already logged
+                    $pur_chk = $conn->prepare("SELECT id FROM user_interactions WHERE user_id = ? AND product_id = ? AND interaction_type = 'purchase'");
+                    $pur_chk->bind_param("ii", $b_id, $p_id);
+                    $pur_chk->execute();
+                    if ($pur_chk->get_result()->num_rows == 0) {
+                        $pur_ins = $conn->prepare("INSERT INTO user_interactions (user_id, product_id, interaction_type, interaction_value) VALUES (?, ?, 'purchase', 5.0)");
+                        $pur_ins->bind_param("ii", $b_id, $p_id);
+                        $pur_ins->execute();
+                        $pur_ins->close();
                     }
-
-                    // Log purchase interaction if applicable
-                    if ($new_status === 'Deal Agreed' || $new_status === 'Sold') {
-                        $pur_chk = $conn->prepare("SELECT id FROM user_interactions WHERE user_id = ? AND product_id = ? AND interaction_type = 'purchase'");
-                        $pur_chk->bind_param("ii", $b_id, $p_id);
-                        $pur_chk->execute();
-                        if ($pur_chk->get_result()->num_rows == 0) {
-                            $pur_ins = $conn->prepare("INSERT INTO user_interactions (user_id, product_id, interaction_type, interaction_value) VALUES (?, ?, 'purchase', 5.0)");
-                            $pur_ins->bind_param("ii", $b_id, $p_id);
-                            $pur_ins->execute();
-                            $pur_ins->close();
-                        }
-                        $pur_chk->close();
-                    }
+                    $pur_chk->close();
                 }
             }
             $inq_info->close();
         }
     }
-    header("Location: customer_inquiries.php?inquiry_id=$active_inquiry_id");
+    header("Location: chat_history_seller.php?inquiry_id=$active_inquiry_id");
     exit();
 }
 
@@ -405,21 +370,6 @@ if ($active_inquiry_id > 0) {
         .chat-form {
             display: flex;
             gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-
-        .offer-input {
-            width: 110px;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            outline: none;
-            transition: border 0.3s;
-        }
-
-        .offer-input:focus {
-            border-color: #27ae60;
         }
 
         .chat-input {
@@ -549,54 +499,6 @@ if ($active_inquiry_id > 0) {
             line-height: 1.5;
             white-space: pre-wrap;
         }
-
-        /* Offer bubble (#6) */
-        .message.offer-bubble {
-            background: linear-gradient(135deg, #27ae60, #2ecc71) !important;
-            color: #fff;
-            border: none !important;
-        }
-
-        .message.offer-bubble.received {
-            background: linear-gradient(135deg, #e67e22, #f39c12) !important;
-        }
-
-        .offer-amount-display {
-            font-size: 1.05rem;
-            font-weight: 700;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        /* System message pill (#7) */
-        .message-system {
-            align-self: center !important;
-            max-width: 85%;
-            background: #f0f4f8;
-            color: #718096;
-            padding: 5px 16px;
-            border-radius: 20px;
-            font-size: 0.78rem;
-            text-align: center;
-            font-style: italic;
-        }
-
-        /* Read receipt (#8) */
-        .msg-read-inline {
-            font-size: 0.65rem;
-            opacity: 0.85;
-            color: rgba(255, 255, 255, 0.85);
-        }
-
-        /* Product thumbnail (#9) */
-        .product-thumb {
-            width: 18px;
-            height: 18px;
-            object-fit: cover;
-            border-radius: 2px;
-            vertical-align: middle;
-            margin-right: 3px;
-        }
     </style>
 </head>
 
@@ -610,10 +512,10 @@ if ($active_inquiry_id > 0) {
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Dashboard</a>
                 <a href="myshop.php" <?php if (basename($_SERVER['PHP_SELF']) == 'myshop.php')
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Products</a>
-                <a href="customer_inquiries.php" <?php if (basename($_SERVER['PHP_SELF']) == 'customer_inquiries.php')
+                <a href="chat_history_seller.php" <?php if (basename($_SERVER['PHP_SELF']) == 'chat_history_seller.php')
                     echo 'class="active-link" style="color: var(--accent-color);"'; ?>>Customer Chats
-                    <span id="pkUnreadBadge"
-                        style="background:red;color:white;border-radius:50%;padding:2px 6px;font-size:0.75rem;margin-left:5px;<?php echo ($unread_count > 0) ? '' : 'display:none;'; ?>"><?php echo $unread_count; ?></span></a>
+                    <?php if (isset($unread_count) && $unread_count > 0)
+                        echo '<span style="background: red; color: white; border-radius: 50%; padding: 2px 6px; font-size: 0.75rem; margin-left: 5px;">' . $unread_count . '</span>'; ?></a>
                 <div class="profile-dropdown-container">
                     <div class="profile-icon"><i class="far fa-user-circle"></i></div>
                     <div class="profile-dropdown-menu">
@@ -636,6 +538,7 @@ if ($active_inquiry_id > 0) {
     </header>
 
     <div class="chat-container">
+        <!-- Sidebar Contacts / Inquiries -->
         <div class="chat-sidebar">
             <div class="chat-sidebar-header">
                 <h3>Customer Inquiries</h3>
@@ -645,7 +548,7 @@ if ($active_inquiry_id > 0) {
                     <p style="padding: 20px; color: #999; text-align: center;">No inquiries yet.</p>
                 <?php else: ?>
                     <?php foreach ($inquiries as $inq): ?>
-                        <a href="customer_inquiries.php?inquiry_id=<?php echo $inq['id']; ?>"
+                        <a href="chat_history_seller.php?inquiry_id=<?php echo $inq['id']; ?>"
                             class="contact-item <?php echo ($active_inquiry_id == $inq['id']) ? 'active' : ''; ?>">
                             <?php
                             $name = trim($inq['firstname'] . ' ' . $inq['lastname']);
@@ -653,20 +556,15 @@ if ($active_inquiry_id > 0) {
                             $statusClassFormat = str_replace(' ', '-', $inq['status']);
                             ?>
                             <div class="contact-avatar" style="background:#3498db;">
-                                <?php echo strtoupper(substr($display, 0, 1)); ?>
-                            </div>
+                                <?php echo strtoupper(substr($display, 0, 1)); ?></div>
                             <div class="contact-info">
                                 <h4><?php echo htmlspecialchars($display); ?> <span
                                         class="status-badge status-<?php echo $statusClassFormat; ?>"><?php echo htmlspecialchars($inq['status']); ?></span>
                                 </h4>
-                                <p><?php if (!empty($inq['image_path'])): ?><img
-                                            src="../<?php echo htmlspecialchars($inq['image_path']); ?>" class="product-thumb"
-                                            onerror="this.style.display='none'"><?php endif; ?><?php echo htmlspecialchars($inq['product_title']); ?>
-                                </p>
+                                <p><?php echo htmlspecialchars($inq['product_title']); ?></p>
                                 <?php if ($inq['current_offer']): ?>
                                     <p style="color:#27ae60; font-weight:600;">Offer: RM
-                                        <?php echo number_format($inq['current_offer'], 2); ?>
-                                    </p>
+                                        <?php echo number_format($inq['current_offer'], 2); ?></p>
                                 <?php endif; ?>
                             </div>
                         </a>
@@ -675,6 +573,7 @@ if ($active_inquiry_id > 0) {
             </div>
         </div>
 
+        <!-- Main Chat Area -->
         <div class="chat-main">
             <?php if ($active_inquiry_id > 0 && $active_inquiry): ?>
                 <?php
@@ -683,8 +582,7 @@ if ($active_inquiry_id > 0) {
                 <div class="chat-header">
                     <div class="header-left">
                         <div class="contact-avatar" style="width: 40px; height: 40px; background:#3498db;">
-                            <?php echo strtoupper(substr($dispName, 0, 1)); ?>
-                        </div>
+                            <?php echo strtoupper(substr($dispName, 0, 1)); ?></div>
                         <div>
                             <h3><?php echo htmlspecialchars($dispName); ?></h3>
                             <p>Interest: <strong><?php echo htmlspecialchars($active_inquiry['product_title']); ?></strong>
@@ -706,7 +604,6 @@ if ($active_inquiry_id > 0) {
                     </div>
 
                     <?php
-                    // Fetch current stock for sold modal
                     $stock_val = 0;
                     if (!empty($active_inquiry['product_id'])) {
                         $stk_q = $conn->prepare("SELECT stock FROM products WHERE id = ?");
@@ -727,7 +624,7 @@ if ($active_inquiry_id > 0) {
                                 <strong><?php echo htmlspecialchars($active_inquiry['product_title']); ?></strong>
                             </p>
                             <p style="color:#888; font-size:0.85rem; margin-bottom:18px;">
-                                Current Stock: <strong id="modalStockDisplay" style="color:#e67e22;"><?php echo $stock_val; ?> units</strong>
+                                Current Stock: <strong style="color:#e67e22;"><?php echo $stock_val; ?> units</strong>
                             </p>
                             <label style="display:block; text-align:left; font-size:0.9rem; font-weight:600; color:#444; margin-bottom:6px;">How many units did this customer purchase?</label>
                             <input type="number" id="soldQtyField" min="1" max="<?php echo $stock_val; ?>" value="1"
@@ -784,7 +681,6 @@ if ($active_inquiry_id > 0) {
                             document.getElementById('statusForm').submit();
                         }
 
-                        // Close modal when clicking backdrop
                         document.getElementById('soldModal').addEventListener('click', function(e) {
                             if (e.target === this) closeSoldModal();
                         });
@@ -793,29 +689,23 @@ if ($active_inquiry_id > 0) {
 
                 <div class="chat-messages" id="chatMessages">
                     <?php if (empty($messages)): ?>
-                        <div data-placeholder="1" style="text-align:center; color:#999; margin:auto;">Send a message to start
-                            the thread.</div>
+                        <div style="text-align:center; color:#999; margin:auto;">Send a message to start the thread.</div>
                     <?php else: ?>
                         <?php foreach ($messages as $msg): ?>
                             <?php $is_mine = ($msg['sender_id'] == $seller_id); ?>
-                            <?php $seen = ($is_mine && !empty($msg['is_read'])) ? ' &middot; <span class="msg-read-inline">&#10003; Seen</span>' : ''; ?>
-                            <?php if (!empty($msg['is_system'])): ?>
-                                <div class="message-system"><?php echo htmlspecialchars($msg['message']); ?></div>
-                            <?php elseif ($msg['is_offer']): ?>
-                                <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?> offer-bubble">
-                                    <span class="offer-amount-display"><i class="fas fa-tag"></i> RM
-                                        <?php echo number_format($msg['offer_amount'], 2); ?></span>
-                                    <?php $om = $msg['message'];
-                                    if ($om && $om !== 'Sent an offer.' && $om !== 'Counter-offer sent.'): ?><span
-                                            style="opacity:0.9;font-size:0.9rem;display:block;"><?php echo htmlspecialchars($om); ?></span><?php endif; ?>
-                                    <span
-                                        class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?><?php echo $seen; ?></span>
+                            <!-- Offer Message -->
+                            <?php if ($msg['is_offer']): ?>
+                                <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?>"
+                                    style="border: 2px solid <?php echo $is_mine ? '#2ecc71' : '#f1c40f'; ?>;">
+                                    <strong><i class="fas fa-hand-holding-usd"></i> New Offer Made: RM
+                                        <?php echo number_format($msg['offer_amount'], 2); ?></strong><br>
+                                    <?php echo htmlspecialchars($msg['message']); ?>
+                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?></span>
                                 </div>
                             <?php else: ?>
                                 <div class="message <?php echo $is_mine ? 'sent' : 'received'; ?>">
                                     <?php echo htmlspecialchars($msg['message']); ?>
-                                    <span
-                                        class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?><?php echo $seen; ?></span>
+                                    <span class="msg-time"><?php echo date('H:i', strtotime($msg['created_at'])); ?></span>
                                 </div>
                             <?php endif; ?>
                         <?php endforeach; ?>
@@ -833,15 +723,14 @@ if ($active_inquiry_id > 0) {
                 </div>
 
                 <div class="chat-input-area">
-                    <form class="chat-form" method="POST" onsubmit="return validateSellerChatForm(this)">
-                        <input type="text" name="message" class="chat-input" placeholder="Type a message..."
+                    <form class="chat-form" method="POST">
+                        <input type="text" name="message" class="chat-input" placeholder="Type a message..." required
                             autocomplete="off" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
-                        <input type="number" step="0.01" min="0.01" name="offer_amount" class="offer-input"
-                            placeholder="Counter RM" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>>
                         <button type="submit" class="btn-send" <?php echo ($active_inquiry['status'] == 'Sold' || $active_inquiry['status'] == 'No Deal') ? 'disabled' : ''; ?>><i
                                 class="fas fa-paper-plane"></i></button>
                     </form>
                 </div>
+                <!-- Auto scroll to bottom -->
                 <script>
                     const pkConversationMessages = <?php echo json_encode($messages, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
                     const pkSellerId = <?php echo (int) $seller_id; ?>;
@@ -851,78 +740,63 @@ if ($active_inquiry_id > 0) {
                     const pkReplyBtn = document.getElementById('aiReplyBtn');
 
                     var cm = document.getElementById('chatMessages');
-                    if (cm) {
-                        setTimeout(() => { cm.scrollTop = cm.scrollHeight; }, 50);
+                    if (cm) cm.scrollTop = cm.scrollHeight;
+
+                    function buildTranscript() {
+                        return pkConversationMessages.slice(-20).map(function (msg) {
+                            const speaker = parseInt(msg.sender_id, 10) === pkSellerId ? 'Seller' : pkBuyerName;
+                            return speaker + ': ' + (msg.message || '');
+                        }).join('\n');
                     }
 
-                    function validateSellerChatForm(f) {
-                        var msg = f.querySelector('[name="message"]').value.trim();
-                        var offer = parseFloat(f.querySelector('[name="offer_amount"]').value || 0);
-                        if (!msg && !(offer > 0)) {
-                            alert('Please type a message or enter a counter-offer amount.');
-                            return false;
-                        }
-                        return true;
-                    }
+                    function requestAiHelp(mode) {
+                        if (!pkAiOutput) return;
+                        pkAiOutput.textContent = 'Generating AI response...';
+                        const transcript = buildTranscript();
+                        const prompt = mode === 'summary'
+                            ? 'Summarize this seller-buyer conversation in 4 concise bullet points, then list the next action item for the seller. Finally suggest 3 short replies the artisan can send.\n\nConversation:\n' + transcript
+                            : 'Suggest 3 short, polite quick replies the artisan can send next, based on the following conversation. Keep each reply under 18 words.\n\nConversation:\n' + transcript;
 
-                    <?php if (!($active_inquiry['status'] === 'Sold' || $active_inquiry['status'] === 'No Deal')): ?>
-                        var lastMsgId = <?php echo !empty($messages) ? (int) end($messages)['id'] : 0; ?>;
-                        var myUserId = <?php echo (int) $seller_id; ?>;
-                        var inquiryId = <?php echo (int) $active_inquiry_id; ?>;
+                        // Prepare URL-encoded form data parameters to bypass InfinityFree AES firewall
+                        const formData = new URLSearchParams();
+                        formData.append('message', prompt);
+                        formData.append('history', JSON.stringify([])); // Keeping structure identical to what chatbot.php expects
 
-                        function escHtml(t) {
-                            return String(t || '').replace(/[&<>"']/g, function (c) {
-                                return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c];
+                        fetch('../api/chatbot.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: formData.toString()
+                        })
+                            .then(function (res) { return res.json(); })
+                            .then(function (data) {
+                                if (data.status === 'success') {
+                                    pkAiOutput.textContent = data.reply;
+                                } else {
+                                    pkAiOutput.textContent = 'AI helper error: ' + (data.message || 'Unknown error');
+                                }
+                            })
+                            .catch(function () {
+                                pkAiOutput.textContent = 'AI helper is unavailable right now.';
                             });
-                        }
+                    }
 
-                        function buildMsgHtml(msg) {
-                            var mine = parseInt(msg.sender_id) === myUserId;
-                            var cls = mine ? 'sent' : 'received';
-                            var d = new Date(msg.created_at.replace(' ', 'T'));
-                            var time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                            var seen = (mine && parseInt(msg.is_read)) ? ' &middot; <span class="msg-read-inline">&#10003; Seen</span>' : '';
-                            if (parseInt(msg.is_system)) {
-                                return '<div class="message-system">' + escHtml(msg.message) + '</div>';
-                            }
-                            if (parseInt(msg.is_offer)) {
-                                var om = msg.message;
-                                var omHtml = (om && om !== 'Sent an offer.' && om !== 'Counter-offer sent.')
-                                    ? '<span style="opacity:0.9;font-size:0.9rem;display:block;">' + escHtml(om) + '</span>' : '';
-                                return '<div class="message ' + cls + ' offer-bubble">' +
-                                    '<span class="offer-amount-display"><i class="fas fa-tag"></i> RM ' +
-                                    parseFloat(msg.offer_amount).toFixed(2) + '</span>' +
-                                    omHtml +
-                                    '<span class="msg-time">' + time + seen + '</span></div>';
-                            }
-                            return '<div class="message ' + cls + '">' + escHtml(msg.message) +
-                                '<span class="msg-time">' + time + seen + '</span></div>';
-                        }
+                    if (pkSummarizeBtn) {
+                        pkSummarizeBtn.addEventListener('click', function () {
+                            requestAiHelp('summary');
+                        });
+                    }
 
-                        function pollMessages() {
-                            fetch('../buyer/get_messages.php?inquiry_id=' + inquiryId + '&after_id=' + lastMsgId)
-                                .then(response => response.json())
-                                .then(data => {
-                                    if (Array.isArray(data) && data.length > 0) {
-                                        var placeholder = cm.querySelector('[data-placeholder]');
-                                        if (placeholder) placeholder.remove();
-
-                                        data.forEach(function (msg) {
-                                            cm.insertAdjacentHTML('beforeend', buildMsgHtml(msg));
-                                            lastMsgId = Math.max(lastMsgId, parseInt(msg.id));
-                                        });
-                                        cm.scrollTop = cm.scrollHeight;
-                                    }
-                                })
-                                .catch(err => console.error("Polling error:", err));
-                        }
-                        setInterval(pollMessages, 3000);
-                    <?php endif; ?>
+                    if (pkReplyBtn) {
+                        pkReplyBtn.addEventListener('click', function () {
+                            requestAiHelp('reply');
+                        });
+                    }
                 </script>
             <?php else: ?>
                 <div class="empty-chat">
                     <i class="far fa-comments"></i>
-                    <p>Select a customer inquiry thread from the left sidebar to start chatting.</p>
+                    <h2>Select an inquiry</h2>
+                    <p>Choose an inquiry from the left to view the thread and negotiation.</p>
                 </div>
             <?php endif; ?>
         </div>
