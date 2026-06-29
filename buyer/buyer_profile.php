@@ -189,10 +189,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <form class="header-search" method="GET" action="../homepage.php#products">
                 <input type="text" name="q" placeholder="Search by product name, color, pattern...">
                 <div class="search-controls">
-                    <button type="button" class="filter-btn" onclick="toggleFilter()">
-                        <i class="fas fa-sliders-h"></i>
-                        <span>Filter</span>
-                    </button>
                     <button type="submit" class="search-btn"><i class="fas fa-search"></i></button>
                 </div>
                 <!-- Dropdown Menu -->
@@ -215,57 +211,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>
                 </div>
-                <!-- Filter Dropdown -->
-                <div class="filter-dropdown" id="filterDropdown">
-                    <div class="filter-section">
-                        <h4>Type & Pattern</h4>
-                        <input type="text" placeholder="e.g. Batik Flora, Jati Wood..." class="filter-input">
-                        <div class="tags" style="margin-top: 10px;">
-                            <span class="tag-option">Abstract</span>
-                            <span class="tag-option">Floral</span>
-                            <span class="tag-option">Geometric</span>
-                            <span class="tag-option">Mahogany</span>
-                            <span class="tag-option">Teak</span>
-                        </div>
-                    </div>
-                    <div class="filter-section">
-                        <h4>Color Palette</h4>
-                        <div class="color-options">
-                            <span class="color-circle" style="background:#2c3e50;" title="Dark Blue"></span>
-                            <span class="color-circle" style="background:#d35400;" title="Terracotta"></span>
-                            <span class="color-circle" style="background:#27ae60;" title="Green"></span>
-                            <span class="color-circle" style="background:#8e44ad;" title="Purple"></span>
-                            <span class="color-circle" style="background:#000000;" title="Black"></span>
-                            <span class="color-circle" style="background:#ffffff; border:1px solid #ddd;"
-                                  title="White"></span>
-                        </div>
-                    </div>
-                    <div class="filter-section">
-                        <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
-                    </div>
-                </div>
-
-                <script>
-                    function toggleFilter() {
-                        const dropdown = document.getElementById('filterDropdown');
-                        const headerSearch = document.querySelector('.header-search');
-
-                        dropdown.classList.toggle('show-filter');
-                        headerSearch.classList.toggle('filter-active');
-                    }
-                    // Optional: Close when clicking outside
-                    document.addEventListener('click', function (event) {
-                        const filterDropdown = document.getElementById('filterDropdown');
-                        const filterBtn = document.querySelector('.filter-btn');
-                        const headerSearch = document.querySelector('.header-search');
-
-                        // Check if click is outside the dropdown AND the filter button
-                        if (!filterDropdown.contains(event.target) && !filterBtn.contains(event.target)) {
-                            filterDropdown.classList.remove('show-filter');
-                            if (headerSearch) headerSearch.classList.remove('filter-active');
-                        }
-                    });
-                </script>
             </form>
             <div class="nav-links">
                 <a href="../batik_page.php">Batik</a>

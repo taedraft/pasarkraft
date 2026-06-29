@@ -282,10 +282,6 @@ $stmt->close();
             <form class="header-search" method="GET" action="batik_page.php">
                 <input type="text" name="q" placeholder="Search batik products..." value="<?php echo htmlspecialchars($filter_query); ?>">
                 <div class="search-controls">
-                    <button class="filter-btn" type="button" onclick="toggleFilter()">
-                        <i class="fas fa-sliders-h"></i>
-                        <span>Filter</span>
-                    </button>
                     <button class="search-btn" type="submit"><i class="fas fa-search"></i></button>
                 </div>
                 <!-- Dropdown Menu -->
@@ -308,72 +304,6 @@ $stmt->close();
                         </div>
                     </div>
                 </div>
-                <!-- Filter Dropdown -->
-                <div class="filter-dropdown" id="filterDropdown">
-                    <div class="filter-section">
-                        <h4>Type &amp; Pattern</h4>
-                        <input type="text" name="pattern" placeholder="e.g. Batik Flora..." class="filter-input" value="<?php echo htmlspecialchars($filter_pattern); ?>">
-                        <div class="tags" style="margin-top: 10px;">
-                            <span class="tag-option">Abstract</span>
-                            <span class="tag-option">Floral</span>
-                            <span class="tag-option">Geometric</span>
-                        </div>
-                    </div>
-                    <div class="filter-section">
-                        <h4>Material</h4>
-                        <input type="text" name="material" placeholder="e.g. Cotton, Silk" class="filter-input" value="<?php echo htmlspecialchars($filter_material); ?>">
-                    </div>
-                    <div class="filter-section">
-                        <h4>Color Palette</h4>
-                        <div class="color-options">
-                            <button type="button" class="color-circle" style="background:#2c3e50;" title="Dark Blue" onclick="setFilterColor('Dark Blue')"></button>
-                            <button type="button" class="color-circle" style="background:#d35400;" title="Terracotta" onclick="setFilterColor('Terracotta')"></button>
-                            <button type="button" class="color-circle" style="background:#27ae60;" title="Green" onclick="setFilterColor('Green')"></button>
-                            <button type="button" class="color-circle" style="background:#8e44ad;" title="Purple" onclick="setFilterColor('Purple')"></button>
-                            <button type="button" class="color-circle" style="background:#000000;" title="Black" onclick="setFilterColor('Black')"></button>
-                            <button type="button" class="color-circle" style="background:#ffffff; border:1px solid #ddd;" title="White" onclick="setFilterColor('White')"></button>
-                        </div>
-                        <input type="hidden" name="color" id="filterColorInput" value="<?php echo htmlspecialchars($filter_color); ?>">
-                        <div style="margin-top: 8px; font-size: 0.8rem; color: #7f8c8d;">Selected: <span id="filterColorLabel"><?php echo $filter_color ? htmlspecialchars($filter_color) : 'Any'; ?></span>
-                        </div>
-                    </div>
-                    <div class="filter-section">
-                        <button class="btn-apply-filter" type="submit">Apply Filters</button>
-                    </div>
-                </div>
-                <script>
-                    function toggleFilter() {
-                        const dropdown = document.getElementById('filterDropdown');
-                        const headerSearch = document.querySelector('.header-search');
-                        dropdown.classList.toggle('show-filter');
-                        headerSearch.classList.toggle('filter-active');
-                    }
-                    document.addEventListener('click', function (event) {
-                        const filterDropdown = document.getElementById('filterDropdown');
-                        const filterBtn = document.querySelector('.filter-btn');
-                        const headerSearch = document.querySelector('.header-search');
-                        if (!filterDropdown.contains(event.target) && !filterBtn.contains(event.target)) {
-                            filterDropdown.classList.remove('show-filter');
-                            if (headerSearch) headerSearch.classList.remove('filter-active');
-                        }
-                    });
-                    function setFilterColor(color) {
-                        const input = document.getElementById('filterColorInput');
-                        const label = document.getElementById('filterColorLabel');
-                        input.value = color;
-                        if (label) label.textContent = color;
-                    }
-                    document.querySelectorAll('.tag-option').forEach(span => {
-                        span.addEventListener('click', function() {
-                            const input = this.closest('.filter-section').querySelector('input[name="pattern"]');
-                            if (input) {
-                                input.value = this.textContent;
-                            }
-                            this.parentNode.querySelectorAll('.tag-option').forEach(t => t.classList.remove('active'));
-                            this.classList.add('active');
-                        });
-                    });
-                </script>
             </form>
             <div class="nav-links">
                 <a href="batik_page.php" class="active-link" style="color: #2980b9;">Batik</a>
