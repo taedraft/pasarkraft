@@ -361,7 +361,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                 <p style="color: #64748b; margin-top: -10px; margin-bottom: 1.5rem; font-size: 0.9rem;">
                     The raw training data representing historical buyer interactions. Ratings are mapped: View = 1, Click = 2, Wishlist = 3, Accepted Deal = 5.
                 </p>
-                <div class="matrix-table-container">
+                <div class="matrix-table-container" style="max-height: 500px; overflow-y: auto;">
                     <?php if (empty($users) || empty($products)): ?>
                         <div style="text-align:center; padding: 3rem 2rem; color:#94a3b8;">
                             <i class="fas fa-table" style="font-size:2.5rem; display:block; margin-bottom:1rem; opacity:0.4;"></i>
