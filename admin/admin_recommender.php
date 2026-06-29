@@ -531,7 +531,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
                 <p style="color: #64748b; font-size: 0.9rem; margin-top: -10px; margin-bottom: 1.5rem;">
                     Currently stored recommendations in the <strong>`recommendations`</strong> table, directly read by the homepage.
                 </p>
-                <div class="matrix-table-container">
+                <div class="matrix-table-container" style="max-height: 500px; overflow-y: auto;">
                     <table class="matrix-table" style="text-align: left;">
                         <thead>
                             <tr style="background:#f8fafc;">
