@@ -500,7 +500,7 @@ while ($row = $recViewRes->fetch_assoc()) $cachedRecs[] = $row;
 
             <!-- Actual content, rendered by JS after AJAX response -->
             <div id="tfidf-content" style="display:none;">
-                <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 2rem;">
+                <div style="display: flex; flex-direction: column; gap: 2rem;">
 
                     <!-- Vocabulary list -->
                     <div class="card-panel" style="max-height: 550px; overflow-y: auto;">
