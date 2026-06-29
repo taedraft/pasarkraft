@@ -200,10 +200,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="dropdown-section">
                         <h4>Collections</h4>
                         <div class="collection-list">
-                            <a href="../batik_page.php"><i class="fas fa-tshirt"></i> Batik Fashion</a>
-                            <a href="../woodcraft_page.php"><i class="fas fa-couch"></i> Wood Furniture</a>
-                            <a href="../woodcraft_page.php"><i class="fas fa-tree"></i> Handcrafted wood</a>
-                            <a href="../batik_page.php"><i class="fas fa-scroll"></i> Batik Textile</a>
+                            <a href="../batik_page.php?subcategories[]=Men%27s+Wear&subcategories[]=Women%27s+Wear"><i class="fas fa-tshirt"></i> Batik Fashion</a>
+                            <a href="../woodcraft_page.php?subcategories[]=Furniture"><i class="fas fa-couch"></i> Wood Furniture</a>
+                            <a href="../woodcraft_page.php?subcategories[]=Traditional+Carving&subcategories[]=Home+Decor"><i class="fas fa-tree"></i> Handcrafted wood</a>
+                            <a href="../batik_page.php?subcategories[]=Batik+Textile"><i class="fas fa-scroll"></i> Batik Textile</a>
                         </div>
                     </div>
                     <div class="dropdown-section">
