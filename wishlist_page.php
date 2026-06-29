@@ -25,12 +25,58 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'buyer') {
 }
 
 $user_id = $_SESSION['user_id'];
+
+$filter_query = trim($_GET['q'] ?? '');
+$filter_material = trim($_GET['material'] ?? '');
+$filter_pattern = trim($_GET['pattern'] ?? '');
+$filter_color = trim($_GET['color'] ?? '');
+
+$where_clauses = ["w.buyer_id = ?"];
+$params = [$user_id];
+$types = "i";
+
+if ($filter_query !== '') {
+    $like = '%' . $filter_query . '%';
+    $where_clauses[] = "(p.title LIKE ? OR p.description LIKE ? OR p.tags LIKE ?)";
+    $params[] = $like;
+    $params[] = $like;
+    $params[] = $like;
+    $types .= 'sss';
+}
+
+if ($filter_material !== '') {
+    $where_clauses[] = "p.material LIKE ?";
+    $params[] = '%' . $filter_material . '%';
+    $types .= 's';
+}
+
+if ($filter_pattern !== '') {
+    $like_pattern = '%' . $filter_pattern . '%';
+    $where_clauses[] = "(p.tags LIKE ? OR p.technique LIKE ? OR p.style LIKE ? OR p.subcategory LIKE ?)";
+    $params[] = $like_pattern;
+    $params[] = $like_pattern;
+    $params[] = $like_pattern;
+    $params[] = $like_pattern;
+    $types .= 'ssss';
+}
+
+if ($filter_color !== '') {
+    $where_clauses[] = "p.color LIKE ?";
+    $params[] = '%' . $filter_color . '%';
+    $types .= 's';
+}
+
 $sql = "SELECT p.id, p.seller_id, p.title, p.category, p.price, p.image_path 
         FROM wishlist w
-        JOIN products p ON w.product_id = p.id
-        WHERE w.buyer_id = ?";
+        JOIN products p ON w.product_id = p.id";
+if (!empty($where_clauses)) {
+    $sql .= " WHERE " . implode(" AND ", $where_clauses);
+}
+
 $stmt = $conn->prepare($sql);
-$stmt->bind_param("i", $user_id);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
 $stmt->execute();
 $result = $stmt->get_result();
 $wishlist_items = [];
@@ -243,14 +289,14 @@ if (empty($recommended_products)) {
     <header>
         <nav>
             <a href="homepage.php" class="logo">Pasar<span>kraft</span>.</a>
-            <div class="header-search">
-                <input type="text" placeholder="Search by product name, color, pattern...">
+            <form class="header-search" method="GET" action="wishlist_page.php">
+                <input type="text" name="q" placeholder="Search wishlisted products..." value="<?php echo htmlspecialchars($filter_query); ?>">
                 <div class="search-controls">
-                    <button class="filter-btn" onclick="toggleFilter()">
+                    <button class="filter-btn" type="button" onclick="toggleFilter()">
                         <i class="fas fa-sliders-h"></i>
                         <span>Filter</span>
                     </button>
-                    <button class="search-btn"><i class="fas fa-search"></i></button>
+                    <button class="search-btn" type="submit"><i class="fas fa-search"></i></button>
                 </div>
                 <!-- Dropdown Menu -->
                 <div class="search-dropdown">
@@ -263,34 +309,85 @@ if (empty($recommended_products)) {
                             <a href="batik_page.php"><i class="fas fa-scroll"></i> Batik Textile</a>
                         </div>
                     </div>
+                    <div class="dropdown-section">
+                        <h4>Trending Tags</h4>
+                        <div class="tags">
+                            <a href="homepage.php?q=Handmade" style="text-decoration:none; color:inherit;"><span>#Handmade</span></a>
+                            <a href="homepage.php?q=EcoFriendly" style="text-decoration:none; color:inherit;"><span>#EcoFriendly</span></a>
+                            <a href="homepage.php?q=Gifts" style="text-decoration:none; color:inherit;"><span>#Gifts</span></a>
+                            <a href="homepage.php?q=Vintage" style="text-decoration:none; color:inherit;"><span>#Vintage</span></a>
+                        </div>
+                    </div>
                 </div>
                 <!-- Filter Dropdown -->
                 <div class="filter-dropdown" id="filterDropdown">
                     <div class="filter-section">
-                        <button class="btn-apply-filter" onclick="toggleFilter()">Apply Filters</button>
+                        <h4>Type &amp; Pattern</h4>
+                        <input type="text" name="pattern" placeholder="e.g. Batik Flora, Jati Wood..." class="filter-input" value="<?php echo htmlspecialchars($filter_pattern); ?>">
+                        <div class="tags" style="margin-top: 10px;">
+                            <span class="tag-option">Abstract</span>
+                            <span class="tag-option">Floral</span>
+                            <span class="tag-option">Geometric</span>
+                            <span class="tag-option">Mahogany</span>
+                            <span class="tag-option">Teak</span>
+                        </div>
+                    </div>
+                    <div class="filter-section">
+                        <h4>Material</h4>
+                        <input type="text" name="material" placeholder="e.g. Cotton, Teak Wood" class="filter-input" value="<?php echo htmlspecialchars($filter_material); ?>">
+                    </div>
+                    <div class="filter-section">
+                        <h4>Color Palette</h4>
+                        <div class="color-options">
+                            <button type="button" class="color-circle" style="background:#2c3e50; width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;" title="Dark Blue" onclick="setFilterColor('Dark Blue')"></button>
+                            <button type="button" class="color-circle" style="background:#d35400; width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;" title="Terracotta" onclick="setFilterColor('Terracotta')"></button>
+                            <button type="button" class="color-circle" style="background:#27ae60; width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;" title="Green" onclick="setFilterColor('Green')"></button>
+                            <button type="button" class="color-circle" style="background:#8e44ad; width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;" title="Purple" onclick="setFilterColor('Purple')"></button>
+                            <button type="button" class="color-circle" style="background:#000000; width:30px; height:30px; border-radius:50%; border:none; cursor:pointer;" title="Black" onclick="setFilterColor('Black')"></button>
+                            <button type="button" class="color-circle" style="background:#ffffff; width:30px; height:30px; border-radius:50%; border:1px solid #ddd; cursor:pointer;" title="White" onclick="setFilterColor('White')"></button>
+                        </div>
+                        <input type="hidden" name="color" id="filterColorInput" value="<?php echo htmlspecialchars($filter_color); ?>">
+                        <div style="margin-top: 8px; font-size: 0.8rem; color: #7f8c8d;">Selected: <span id="filterColorLabel"><?php echo $filter_color ? htmlspecialchars($filter_color) : 'Any'; ?></span>
+                        </div>
+                    </div>
+                    <div class="filter-section">
+                        <button class="btn-apply-filter" type="submit">Apply Filters</button>
                     </div>
                 </div>
                 <script>
                     function toggleFilter() {
                         const dropdown = document.getElementById('filterDropdown');
                         const headerSearch = document.querySelector('.header-search');
-
                         dropdown.classList.toggle('show-filter');
                         headerSearch.classList.toggle('filter-active');
                     }
-                    // Optional: Close when clicking outside
                     document.addEventListener('click', function (event) {
                         const filterDropdown = document.getElementById('filterDropdown');
                         const filterBtn = document.querySelector('.filter-btn');
                         const headerSearch = document.querySelector('.header-search');
-
                         if (!filterDropdown.contains(event.target) && !filterBtn.contains(event.target)) {
                             filterDropdown.classList.remove('show-filter');
                             if (headerSearch) headerSearch.classList.remove('filter-active');
                         }
                     });
+                    function setFilterColor(color) {
+                        const input = document.getElementById('filterColorInput');
+                        const label = document.getElementById('filterColorLabel');
+                        input.value = color;
+                        if (label) label.textContent = color;
+                    }
+                    document.querySelectorAll('.tag-option').forEach(span => {
+                        span.addEventListener('click', function() {
+                            const input = this.closest('.filter-section').querySelector('input[name="pattern"]');
+                            if (input) {
+                                input.value = this.textContent;
+                            }
+                            this.parentNode.querySelectorAll('.tag-option').forEach(t => t.classList.remove('active'));
+                            this.classList.add('active');
+                        });
+                    });
                 </script>
-            </div>
+            </form>
             <div class="nav-links">
                 <a href="batik_page.php">Batik</a>
                 <a href="woodcraft_page.php">Woodcraft</a>

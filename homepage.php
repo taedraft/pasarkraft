@@ -199,19 +199,19 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                     <div class="dropdown-section">
                         <h4>Collections</h4>
                         <div class="collection-list">
-                            <a href="#"><i class="fas fa-tshirt"></i> Batik Fashion</a>
+                            <a href="batik_page.php"><i class="fas fa-tshirt"></i> Batik Fashion</a>
                             <a href="woodcraft_page.php"><i class="fas fa-couch"></i> Wood Furniture</a>
                             <a href="woodcraft_page.php"><i class="fas fa-tree"></i> Handcrafted wood</a>
-                            <a href="#"><i class="fas fa-scroll"></i> Batik Textile</a>
+                            <a href="batik_page.php"><i class="fas fa-scroll"></i> Batik Textile</a>
                         </div>
                     </div>
                     <div class="dropdown-section">
                         <h4>Trending Tags</h4>
                         <div class="tags">
-                            <span>#Handmade</span>
-                            <span>#EcoFriendly</span>
-                            <span>#Gifts</span>
-                            <span>#Vintage</span>
+                            <a href="homepage.php?q=Handmade" style="text-decoration:none; color:inherit;"><span>#Handmade</span></a>
+                            <a href="homepage.php?q=EcoFriendly" style="text-decoration:none; color:inherit;"><span>#EcoFriendly</span></a>
+                            <a href="homepage.php?q=Gifts" style="text-decoration:none; color:inherit;"><span>#Gifts</span></a>
+                            <a href="homepage.php?q=Vintage" style="text-decoration:none; color:inherit;"><span>#Vintage</span></a>
                         </div>
                     </div>
                 </div>
@@ -228,7 +228,7 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                         </select>
                     </div>
                     <div class="filter-section">
-                        <h4>Type & Pattern</h4>
+                        <h4>Type &amp; Pattern</h4>
                         <input type="text" name="pattern" placeholder="e.g. Batik Flora, Jati Wood..."
                             class="filter-input" value="<?php echo htmlspecialchars($filter_pattern); ?>">
                         <div class="tags" style="margin-top: 10px;">
@@ -298,6 +298,17 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                         input.value = color;
                         if (label) label.textContent = color;
                     }
+                    // Automatically fill the "Type & Pattern" input when clicking a tag option
+                    document.querySelectorAll('.tag-option').forEach(span => {
+                        span.addEventListener('click', function() {
+                            const input = this.closest('.filter-section').querySelector('input[name="pattern"]');
+                            if (input) {
+                                input.value = this.textContent;
+                            }
+                            this.parentNode.querySelectorAll('.tag-option').forEach(t => t.classList.remove('active'));
+                            this.classList.add('active');
+                        });
+                    });
                 </script>
             </form>
             <div class="nav-links">
