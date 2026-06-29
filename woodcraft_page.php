@@ -357,30 +357,6 @@ $stmt->close();
                     </div>
                 </div>
 
-                <div class="filter-group">
-                    <h3>Wood Tone</h3>
-                    <div class="sidebar-color-options" style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <?php
-                        $colors_list = [
-                            "brown" => ["Teak / Brown", "#8d6e63"],
-                            "mahogany" => ["Mahogany / Red Tone", "#5d4037"],
-                            "pine" => ["Pine / Light Tone", "#d7ccc8"],
-                            "ebony" => ["Ebony / Black", "#3e2723"],
-                            "driftwood" => ["Driftwood / Grey", "#a1887f"]
-                        ];
-                        foreach ($colors_list as $class => $info):
-                            $title = $info[0];
-                            $hex = $info[1];
-                            $is_selected = in_array($title, $selected_colors);
-                            $selected_class = $is_selected ? 'selected' : '';
-                        ?>
-                            <label style="cursor: pointer; margin: 0; padding: 0; display: inline-block;" title="<?php echo htmlspecialchars($title); ?>">
-                                <input type="checkbox" name="colors[]" value="<?php echo htmlspecialchars($title); ?>" <?php echo $is_selected ? 'checked' : ''; ?> style="display: none;" onchange="this.form.submit()">
-                                <span class="color-swatch <?php echo $selected_class; ?>" style="background: <?php echo $hex; ?>;"></span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
 
                 <div class="filter-group">
                     <h3>Technique</h3>

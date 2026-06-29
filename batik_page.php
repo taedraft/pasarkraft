@@ -374,31 +374,6 @@ $stmt->close();
                     </div>
                 </div>
 
-                <div class="filter-group">
-                    <h3>Color</h3>
-                    <div class="sidebar-color-options" style="display:flex; gap:8px; flex-wrap:wrap;">
-                        <?php
-                        $colors_list = [
-                            "blue" => "Blue",
-                            "red" => "Red",
-                            "brown" => "Brown",
-                            "black" => "Black",
-                            "green" => "Green",
-                            "yellow" => "Yellow",
-                            "white" => "White",
-                            "multi" => "Multi-color"
-                        ];
-                        foreach ($colors_list as $class => $title):
-                            $is_selected = in_array($title, $selected_colors);
-                            $selected_class = $is_selected ? 'selected' : '';
-                        ?>
-                            <label style="cursor: pointer; margin: 0; padding: 0; display: inline-block;" title="<?php echo htmlspecialchars($title); ?>">
-                                <input type="checkbox" name="colors[]" value="<?php echo htmlspecialchars($title); ?>" <?php echo $is_selected ? 'checked' : ''; ?> style="display: none;" onchange="this.form.submit()">
-                                <span class="color-swatch <?php echo $class; ?> <?php echo $selected_class; ?>"></span>
-                            </label>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
 
                 <div class="filter-group">
                     <h3>Technique</h3>
