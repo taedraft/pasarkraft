@@ -124,7 +124,7 @@ if (!empty($selected_subs)) {
     $sub_clauses = [];
     foreach ($selected_subs as $s) {
         if ($s === "Furniture") {
-            $sub_clauses[] = "(p.subcategory = 'Furniture' OR p.subcategory LIKE '%Furniture%' OR p.title LIKE '%Furniture%' OR p.title LIKE '%Table%' OR p.title LIKE '%Stool%' OR p.title LIKE '%Chair%' OR p.title LIKE '%Bench%' OR p.title LIKE '%Couch%' OR p.title LIKE '%Cabinet%' OR p.title LIKE '%Desk%')";
+            $sub_clauses[] = "(p.subcategory = 'Furniture' OR p.subcategory LIKE '%Furniture%' OR p.title LIKE '%Furniture%' OR (p.title LIKE '%Table%' AND p.title NOT LIKE '%Tabletop%') OR p.title LIKE '%Stool%' OR p.title LIKE '%Chair%' OR p.title LIKE '%Bench%' OR p.title LIKE '%Couch%' OR p.title LIKE '%Cabinet%' OR (p.title LIKE '%Desk%' AND p.title NOT LIKE '%Desktop%' AND p.title NOT LIKE '%Organizer%' AND p.title NOT LIKE '%Stand%' AND p.title NOT LIKE '%Accessory%'))";
         } elseif ($s === "Home Decor") {
             $sub_clauses[] = "(p.subcategory = 'Home Decor' OR p.subcategory LIKE '%Decor%' OR p.title LIKE '%Decor%' OR p.title LIKE '%Plaque%' OR p.title LIKE '%Sculpt%' OR p.title LIKE '%Art%' OR p.title LIKE '%Frame%' OR p.title LIKE '%Mirror%' OR p.title LIKE '%Vase%' OR p.title LIKE '%Clock%')";
         } elseif ($s === "Kitchenware") {
