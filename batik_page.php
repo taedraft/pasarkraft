@@ -124,7 +124,7 @@ if (!empty($selected_subs)) {
     $sub_clauses = [];
     foreach ($selected_subs as $s) {
         if ($s === "Men's Wear") {
-            $sub_clauses[] = "(p.subcategory = 'Men\'s Wear' OR p.subcategory = 'Men\'\'s Wear' OR p.subcategory = 'Menswear' OR p.subcategory = 'Men Wear' OR p.subcategory LIKE '%Men%Wear%' OR ((p.title LIKE '%Men\'s%' OR p.title LIKE '%Mens%' OR p.title LIKE '%Men%Shirt%' OR p.tags LIKE '%Men%') AND p.title NOT LIKE '%Women%' AND p.tags NOT LIKE '%Women%'))";
+            $sub_clauses[] = "(p.subcategory = 'Men\'s Wear' OR p.subcategory = 'Men\'\'s Wear' OR p.subcategory = 'Menswear' OR p.subcategory = 'Men Wear' OR (p.subcategory LIKE '%Men%Wear%' AND p.subcategory NOT LIKE '%Women%') OR ((p.title LIKE '%Men\'s%' OR p.title LIKE '%Mens%' OR p.title LIKE '%Men%Shirt%' OR p.tags LIKE '%Men%') AND p.title NOT LIKE '%Women%' AND p.tags NOT LIKE '%Women%'))";
         } elseif ($s === "Women's Wear") {
             $sub_clauses[] = "(p.subcategory = 'Women\'s Wear' OR p.subcategory = 'Women\'\'s Wear' OR p.subcategory = 'Womenswear' OR p.subcategory = 'Women Wear' OR p.subcategory LIKE '%Women%Wear%' OR (p.title LIKE '%Women\'s%' OR p.title LIKE '%Womens%' OR p.title LIKE '%Dress%' OR p.title LIKE '%Kaftan%' OR p.title LIKE '%Caftan%' OR p.tags LIKE '%Women%'))";
         } elseif ($s === "Batik Textile") {
