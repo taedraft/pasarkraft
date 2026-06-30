@@ -332,12 +332,13 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                         <div class="product-info">
                             <div class="product-meta">
                                 <span class="product-category"><?php echo htmlspecialchars($prod['category']); ?></span>
-                                <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-top: 5px;"><i
-                                        class="fas fa-store"></i>
-                                    <?php echo htmlspecialchars($prod['shopname'] ?? 'Artisan Shop'); ?></div>
                                 <button class="wishlist-btn <?php echo $wishlist_class; ?>"
                                     onclick="toggleWishlist(this, <?php echo $prod['id']; ?>)" title="Add to Wishlist"><i
                                         class="<?php echo $heart_icon; ?>" style="<?php echo $heart_color; ?>"></i></button>
+                            </div>
+                            <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-store" style="color: #a1887f;"></i>
+                                <?php echo htmlspecialchars($prod['shopname'] ?? 'Artisan Shop'); ?>
                             </div>
                             <h3 class="product-title">
                                 <a href="product_detail.php?id=<?php echo $prod['id']; ?>" style="text-decoration: none; color: inherit;">
@@ -394,12 +395,13 @@ if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role']
                         <div class="product-info">
                             <div class="product-meta">
                                 <span class="product-category"><?php echo htmlspecialchars($prod['category']); ?></span>
-                                <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-top: 5px;"><i
-                                        class="fas fa-store"></i>
-                                    <?php echo htmlspecialchars($prod['shopname'] ?? 'Artisan Shop'); ?></div>
                                 <button class="wishlist-btn <?php echo $wishlist_class; ?>"
                                     onclick="toggleWishlist(this, <?php echo $prod['id']; ?>)" title="Add to Wishlist"><i
                                         class="<?php echo $heart_icon; ?>" style="<?php echo $heart_color; ?>"></i></button>
+                            </div>
+                            <div class="shop-name" style="font-size: 0.8rem; color: #7f8c8d; margin-bottom: 8px; display: flex; align-items: center; gap: 4px;">
+                                <i class="fas fa-store" style="color: #a1887f;"></i>
+                                <?php echo htmlspecialchars($prod['shopname'] ?? 'Artisan Shop'); ?>
                             </div>
                             <h3 class="product-title">
                                 <a href="product_detail.php?id=<?php echo $prod['id']; ?>" style="text-decoration: none; color: inherit;">
