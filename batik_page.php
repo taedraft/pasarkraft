@@ -123,21 +123,9 @@ if ($filter_pattern !== '') {
 if (!empty($selected_subs)) {
     $sub_clauses = [];
     foreach ($selected_subs as $s) {
-        if ($s === "Men's Wear") {
-            $sub_clauses[] = "(p.subcategory = 'Men\'s Wear' OR p.subcategory = 'Men\'\'s Wear' OR p.subcategory = 'Menswear' OR p.subcategory = 'Men Wear' OR (p.subcategory LIKE '%Men%Wear%' AND p.subcategory NOT LIKE '%Women%') OR ((p.title LIKE '%Men\'s%' OR p.title LIKE '%Mens%' OR p.title LIKE '%Men%Shirt%' OR p.tags LIKE '%Men%') AND p.title NOT LIKE '%Women%' AND p.tags NOT LIKE '%Women%'))";
-        } elseif ($s === "Women's Wear") {
-            $sub_clauses[] = "(p.subcategory = 'Women\'s Wear' OR p.subcategory = 'Women\'\'s Wear' OR p.subcategory = 'Womenswear' OR p.subcategory = 'Women Wear' OR p.subcategory LIKE '%Women%Wear%' OR (p.title LIKE '%Women\'s%' OR p.title LIKE '%Womens%' OR p.title LIKE '%Dress%' OR p.title LIKE '%Kaftan%' OR p.title LIKE '%Caftan%' OR p.tags LIKE '%Women%'))";
-        } elseif ($s === "Batik Textile") {
-            $sub_clauses[] = "(p.subcategory = 'Batik Textile' OR p.subcategory LIKE '%Textile%' OR p.title LIKE '%Textile%' OR p.title LIKE '%Fabric%' OR p.title LIKE '%Sarong%' OR p.title LIKE '%Unstitched%')";
-        } elseif ($s === "Handcrafted Items") {
-            $sub_clauses[] = "(p.subcategory = 'Handcrafted Items' OR p.subcategory LIKE '%Handcraft%' OR p.title LIKE '%Craft%' OR p.title LIKE '%Handcrafted%' OR p.title LIKE '%Box%' OR p.title LIKE '%Plaque%' OR p.title LIKE '%Stool%')";
-        } elseif ($s === "Accessories") {
-            $sub_clauses[] = "(p.subcategory = 'Accessories' OR p.subcategory LIKE '%Accessory%' OR p.title LIKE '%Accessory%' OR p.title LIKE '%Bag%' OR p.title LIKE '%Tote%' OR p.title LIKE '%Scarf%' OR p.title LIKE '%Scrunchie%' OR p.title LIKE '%Fan%' OR p.title LIKE '%Pencilcase%')";
-        } else {
-            $sub_clauses[] = "p.subcategory = ?";
-            $params[] = $s;
-            $types .= "s";
-        }
+        $sub_clauses[] = "p.subcategory = ?";
+        $params[] = $s;
+        $types .= "s";
     }
     if (!empty($sub_clauses)) {
         $where_clauses[] = "(" . implode(" OR ", $sub_clauses) . ")";
@@ -345,7 +333,7 @@ $stmt->close();
                 <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
 
                 <div class="filter-group">
-                    <h3>Category</h3>
+                    <h3>Subcategory</h3>
                     <ul>
                         <?php
                         $subcategories_list = ["Batik Textile", "Men's Wear", "Women's Wear", "Handcrafted Items", "Accessories"];
